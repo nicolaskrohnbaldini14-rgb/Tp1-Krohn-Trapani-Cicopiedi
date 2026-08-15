@@ -2,7 +2,7 @@
 
 Clonar el repositorio y ejecutar el servidor:
 
-git clone https://github.com/nicolaskrohnbaldini14-rgb/suscripciones-plus.git
+git clone https://github.com/nicolaskrohnbaldini14-rgb/Tp1-Krohn-Trapani-Cicopiedi
 cd miProyecto
 go run main.go
 
