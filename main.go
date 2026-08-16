@@ -14,7 +14,7 @@ func main() {
   http.Handle("/", fileServer)
 
   port := ":8080"
-  fmt.Printf("Servidor ESTÁTICO escuchando en http://localhost%s\n", port)
+  fmt.Printf("Servidor escuchando en http://localhost%s\n", port)
   fmt.Printf("Sirviendo archivos desde: %s\n", staticDir)
 
 
