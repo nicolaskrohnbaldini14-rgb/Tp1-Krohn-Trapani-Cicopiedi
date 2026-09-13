@@ -58,9 +58,9 @@ El modelo de datos está compuesto por 4 tablas relacionales, definidas en
 
 
 
-- `suscripciones.id_usuario` → `usuario.id_usuario` (`ON DELETE CASCADE`)
-- `suscripciones.id_servicio` → `servicio.id_servicio`
-- `pago.id_suscripciones` → `suscripciones.id_suscripciones` (`ON DELETE CASCADE`)
+- `suscripcion.id_usuario` → `usuario.id_usuario` (`ON DELETE CASCADE`)
+- `suscripcion.id_servicio` → `servicio.id_servicio`
+- `pago.id_suscripcion` → `suscripcion.id_suscripcion` (`ON DELETE CASCADE`)
 
 El acceso a datos se genera con [sqlc](https://sqlc.dev/) a partir de las
 queries en [`db/queries/queries.sql`](db/queries/queries.sql), que cubren las
