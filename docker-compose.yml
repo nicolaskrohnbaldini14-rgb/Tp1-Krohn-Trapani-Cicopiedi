@@ -1,7 +1,7 @@
 services:
   database:
     image: postgres:18
-    container_name: postgres-db
+    container_name: postgres-db-TKC
     environment:
       - POSTGRES_DB=mi_tp2_db
       - POSTGRES_USER=postgres
