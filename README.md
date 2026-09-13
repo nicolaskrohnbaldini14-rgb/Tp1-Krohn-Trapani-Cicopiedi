@@ -47,7 +47,7 @@ El modelo de datos está compuesto por 4 tablas relacionales, definidas en
 |---|---|
 | `usuario` | Cuenta de la persona que usa la app (nombre, apellido, DNI, email, contraseña). |
 | `servicio` | Catálogo de servicios disponibles (nombre + categoría), normalizado para poder agrupar el gasto por categoría. |
-| `suscripciones` | Relaciona un `usuario` con un `servicio`: monto, fecha de inicio, fecha de vencimiento, credenciales de acceso al servicio (usuario/contraseña de esa cuenta) y estado (activa/pausada). |
+| `suscripcion` | Relaciona un `usuario` con un `servicio`: monto, fecha de inicio, fecha de vencimiento, credenciales de acceso al servicio (usuario/contraseña de esa cuenta) y estado (activa/pausada). |
 | `pago` | Historial real de cobros de una suscripción. Permite calcular el gasto efectivo mes a mes, no solo el proyectado. |
 
 **Relaciones:**
