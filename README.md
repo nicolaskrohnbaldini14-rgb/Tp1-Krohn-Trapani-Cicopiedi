@@ -5,7 +5,7 @@
 - [Docker](https://www.docker.com/) con Docker Compose
 - [sqlc](https://docs.sqlc.dev/) — se instala con:
   sudo snap install sqlc
-  # o, si ya tenés Go instalado:
+  O, si ya tenés Go instalado:
   go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
  
 
