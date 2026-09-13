@@ -9,4 +9,4 @@ cd Tp1-Krohn-Trapani-Cicopiedi
 ## Cambiar a la rama requerida 
 git checkout tp2 
 ## Ejecutar las pruebas
-make test
+make run
