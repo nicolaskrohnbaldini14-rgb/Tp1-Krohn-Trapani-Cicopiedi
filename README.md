@@ -52,7 +52,8 @@ El modelo de datos está compuesto por 4 tablas relacionales, definidas en
 
 **Relaciones:**
 
-<img width="1376" height="733" alt="modeloRelacionalWEB" src="https://github.com/user-attachments/assets/f8a90e66-a1c8-4f23-92c6-914b654a4286" />
+<img width="1024" height="559" alt="ModeloRelacionalWEB" src="https://github.com/user-attachments/assets/a5284446-98ce-4dc8-b4a0-a3bec07d5b3e" />
+
 
 
 
