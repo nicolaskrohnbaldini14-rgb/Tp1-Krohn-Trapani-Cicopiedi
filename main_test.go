@@ -28,7 +28,7 @@ func TestTablasDominio_CRUD(t *testing.T) {
 	ctx := context.Background()
 
 	// 2. Limpieza de las 4 tablas en orden inverso por claves foráneas
-	_, err = dbConn.Exec("TRUNCATE TABLE pago, suscripciones, servicio, usuario CASCADE")
+	_, err = dbConn.Exec("TRUNCATE TABLE pago, suscripcion, servicio, usuario CASCADE")
 	if err != nil {
 		t.Fatalf("Error al limpiar las tablas de la BD: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestTablasDominio_CRUD(t *testing.T) {
 	// =========================================================================
 	// TEST 3: TABLA SUBSCRIPCIONES
 	// =========================================================================
-	t.Run("Tabla_Subscripciones_CRUD", func(t *testing.T) {
+	t.Run("Tabla_Subscripcion_CRUD", func(t *testing.T) {
 		ahora := time.Now()
 
 		t.Run("CreateSubscripcion", func(t *testing.T) {
@@ -186,10 +186,10 @@ func TestTablasDominio_CRUD(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Error al crear suscripción: %v", err)
 			}
-			if sub.IDSuscripciones == 0 {
+			if sub.IDSuscripcion == 0 {
 				t.Error("Se esperaba un ID de suscripción mayor a 0")
 			}
-			createdSubID = sub.IDSuscripciones
+			createdSubID = sub.IDSuscripcion
 		})
 
 		t.Run("GetSubscripcion", func(t *testing.T) {
@@ -204,7 +204,7 @@ func TestTablasDominio_CRUD(t *testing.T) {
 
 		t.Run("UpdateSubscripcion", func(t *testing.T) {
 			err := queries.UpdateSubscripcion(ctx, sqlc.UpdateSubscripcionParams{
-				IDSuscripciones:  createdSubID,
+				IDSuscripcion:  createdSubID,
 				Monto:            "6500.00",
 				FechaVencimiento: ahora.AddDate(0, 2, 0),
 				Estado:           sql.NullString{String: "Pausada", Valid: true},
@@ -214,10 +214,10 @@ func TestTablasDominio_CRUD(t *testing.T) {
 			}
 		})
 
-		t.Run("ListSubscripcionesUsuario", func(t *testing.T) {
-			subs, err := queries.ListSubscripcionesUsuario(ctx, createdUserID)
+		t.Run("ListSubscripcionUsuario", func(t *testing.T) {
+			subs, err := queries.ListSuscripcionesUsuario(ctx, createdUserID)
 			if err != nil {
-				t.Fatalf("Error al listar suscripciones del usuario: %v", err)
+				t.Fatalf("Error al listar suscripcion del usuario: %v", err)
 			}
 			if len(subs) == 0 {
 				t.Error("Se esperaba al menos 1 suscripción listada para el usuario")
@@ -233,7 +233,7 @@ func TestTablasDominio_CRUD(t *testing.T) {
 
 		t.Run("CreatePago", func(t *testing.T) {
 			pago, err := queries.CreatePago(ctx, sqlc.CreatePagoParams{
-				IDSuscripciones: createdSubID,
+				IDSuscripcion: createdSubID,
 				Monto:           "6500.00",
 				FechaPago:       ahora,
 			})
