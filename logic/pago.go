@@ -1,0 +1,266 @@
+package logic
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+)
+
+
+
+// EntradaPago representa el JSON recibido para registrar un pago
+type EntradaPago struct {
+	IDSuscripciones int32     `json:"id_suscripciones"`
+	Monto           float64   `json:"monto"`
+	FechaPago       time.Time `json:"fecha_pago"`
+}
+
+// RespuestaPago define el objeto retornado en las respuestas JSON
+type RespuestaPago struct {
+	IDPago          int32     `json:"id_pago"`
+	IDSuscripciones int32     `json:"id_suscripciones"`
+	Monto           string    `json:"monto"`
+	FechaPago       time.Time `json:"fecha_pago"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+func validarCamposPago(datos EntradaPago) error {
+	if datos.IDSuscripciones <= 0 {
+		return fmt.Errorf("el id_suscripciones debe ser un identificador válido")
+	}
+	if datos.Monto <= 0 {
+		return fmt.Errorf("el monto del pago debe ser mayor a cero")
+	}
+	if datos.FechaPago.IsZero() {
+		return fmt.Errorf("la fecha de pago es obligatoria")
+	}
+	return nil
+}
+
+func mapearPagoARespuesta(p sqlc.Pago) RespuestaPago {
+	return RespuestaPago{
+		IDPago:          p.IDPago,
+		IDSuscripciones: p.IDSuscripciones,
+		Monto:           p.Monto,
+		FechaPago:       p.FechaPago,
+		CreatedAt:       p.CreatedAt,
+	}
+}
+
+
+type ServicioPago struct {
+	consultas *sqlc.Queries
+}
+
+func NuevoServicioPago(q *sqlc.Queries) *ServicioPago {
+	return &ServicioPago{consultas: q}
+}
+
+// Crear valida los datos, la existencia de la suscripción y el rango de la fecha de pago
+func (s *ServicioPago) Crear(ctx context.Context, entrada EntradaPago) (RespuestaPago, error) {
+	if err := validarCamposPago(entrada); err != nil {
+		return RespuestaPago{}, err
+	}
+
+	// 1. Verificar que la suscripción exista en la base de datos
+	sub, err := s.consultas.GetSubscripcion(ctx, entrada.IDSuscripciones)
+	if err == sql.ErrNoRows {
+		return RespuestaPago{}, fmt.Errorf("la suscripción especificada no existe")
+	} else if err != nil {
+		return RespuestaPago{}, err
+	}
+
+	// La fecha de pago debe estar en el rango de la fecha_vencimiento
+	if entrada.FechaPago.After(sub.FechaVencimiento) {
+		return RespuestaPago{}, fmt.Errorf("la fecha del pago no puede ser posterior a la fecha de vencimiento de la suscripción (%s)", sub.FechaVencimiento.Format("2006-01-02"))
+	}
+
+	montoTexto := fmt.Sprintf("%.2f", entrada.Monto)
+
+	nuevo, err := s.consultas.CreatePago(ctx, sqlc.CreatePagoParams{
+		IDSuscripciones: entrada.IDSuscripciones,
+		Monto:           montoTexto,
+		FechaPago:       entrada.FechaPago,
+	})
+	if err != nil {
+		return RespuestaPago{}, err
+	}
+
+	return mapearPagoARespuesta(nuevo), nil
+}
+
+// ObtenerPorID busca un pago por su identificador único id_pago
+func (s *ServicioPago) ObtenerPorID(ctx context.Context, id int32) (RespuestaPago, error) {
+	pago, err := s.consultas.GetPago(ctx, id)
+	if err == sql.ErrNoRows {
+		return RespuestaPago{}, fmt.Errorf("pago no encontrado")
+	} else if err != nil {
+		return RespuestaPago{}, err
+	}
+	return mapearPagoARespuesta(pago), nil
+}
+
+// ListarPorSuscripcion recupera el historial de pagos de una suscripción
+func (s *ServicioPago) ListarPorSuscripcion(ctx context.Context, idSuscripcion int32) ([]RespuestaPago, error) {
+	// Verificar previamente que la suscripción exista
+	_, err := s.consultas.GetSubscripcion(ctx, idSuscripcion)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("la suscripción especificada no existe")
+	} else if err != nil {
+		return nil, err
+	}
+
+	lista, err := s.consultas.ListPagos(ctx, idSuscripcion)
+	if err != nil {
+		return nil, err
+	}
+
+	resultado := make([]RespuestaPago, len(lista))
+	for i, item := range lista {
+		resultado[i] = mapearPagoARespuesta(item)
+	}
+	return resultado, nil
+}
+
+// Eliminar quita un registro de pago previa comprobación
+func (s *ServicioPago) Eliminar(ctx context.Context, id int32) error {
+	_, err := s.consultas.GetPago(ctx, id)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("pago no encontrado")
+	} else if err != nil {
+		return err
+	}
+
+	return s.consultas.DeletePago(ctx, id)
+}
+
+type ManejadorPago struct {
+	servicio *ServicioPago
+}
+
+func NuevoManejadorPago(s *ServicioPago) *ManejadorPago {
+	return &ManejadorPago{servicio: s}
+}
+
+// ManejarPagos atiende solicitudes POST en /pagos
+func (h *ManejadorPago) ManejarPagos(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		h.crear(w, r)
+	default:
+		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
+	}
+}
+
+// ManejarPagoPorID atiende GET y DELETE en /pagos/{id}
+func (h *ManejadorPago) ManejarPagoPorID(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.extraerID(w, r)
+	if !ok {
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		h.obtenerPorID(w, r, id)
+	case http.MethodDelete:
+		h.eliminar(w, r, id)
+	default:
+		http.Error(w, "Método HTTP no permitido (los registros de pago son inmutables)", http.StatusMethodNotAllowed)
+	}
+}
+
+// ManejarPagosPorSuscripcion atiende GET en /pagos/suscripcion/{id_suscripcion}
+func (h *ManejadorPago) ManejarPagosPorSuscripcion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idSuscripcion, ok := h.extraerID(w, r)
+	if !ok {
+		return
+	}
+
+	h.obtenerPorSuscripcion(w, r, idSuscripcion)
+}
+
+func (h *ManejadorPago) crear(w http.ResponseWriter, r *http.Request) {
+	var entrada EntradaPago
+	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
+		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
+		return
+	}
+
+	creado, err := h.servicio.Crear(r.Context(), entrada)
+	if err != nil {
+		h.responderError(w, err)
+		return
+	}
+	h.responderJSON(w, http.StatusCreated, creado)
+}
+
+func (h *ManejadorPago) obtenerPorID(w http.ResponseWriter, r *http.Request, id int32) {
+	pago, err := h.servicio.ObtenerPorID(r.Context(), id)
+	if err != nil {
+		h.responderError(w, err)
+		return
+	}
+	h.responderJSON(w, http.StatusOK, pago)
+}
+
+func (h *ManejadorPago) obtenerPorSuscripcion(w http.ResponseWriter, r *http.Request, idSuscripcion int32) {
+	lista, err := h.servicio.ListarPorSuscripcion(r.Context(), idSuscripcion)
+	if err != nil {
+		h.responderError(w, err)
+		return
+	}
+	h.responderJSON(w, http.StatusOK, lista)
+}
+
+func (h *ManejadorPago) eliminar(w http.ResponseWriter, r *http.Request, id int32) {
+	if err := h.servicio.Eliminar(r.Context(), id); err != nil {
+		h.responderError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ManejadorPago) extraerID(w http.ResponseWriter, r *http.Request) (int32, bool) {
+	partes := strings.Split(r.URL.Path, "/")
+	if len(partes) < 3 || partes[len(partes)-1] == "" {
+		http.Error(w, "ID no especificado", http.StatusBadRequest)
+		return 0, false
+	}
+
+	idNum, err := strconv.Atoi(partes[len(partes)-1])
+	if err != nil {
+		http.Error(w, "El ID debe ser un valor numérico", http.StatusBadRequest)
+		return 0, false
+	}
+	return int32(idNum), true
+}
+
+func (h *ManejadorPago) responderError(w http.ResponseWriter, err error) {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "no encontrado") || strings.Contains(msg, "no existe"):
+		http.Error(w, msg, http.StatusNotFound)
+	case strings.Contains(msg, "obligatoria") || strings.Contains(msg, "mayor a cero") || strings.Contains(msg, "posterior") || strings.Contains(msg, "válido"):
+		http.Error(w, msg, http.StatusBadRequest)
+	default:
+		http.Error(w, "Error interno del servidor", http.StatusInternalServerError)
+	}
+}
+
+func (h *ManejadorPago) responderJSON(w http.ResponseWriter, estado int, datos any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(estado)
+	_ = json.NewEncoder(w).Encode(datos)
+}

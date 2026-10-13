@@ -3,11 +3,15 @@
 
 -- name: CreateUsuario :one
 INSERT INTO usuario (
-    nombre, apellido, dni, email, password
+    nombre, email, password
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3
 )
 RETURNING *;
+
+-- name: GetUsuarioByEmail :one
+SELECT * FROM usuario 
+WHERE email = $1;
 
 -- name: GetUsuario :one
 SELECT * FROM usuario 
@@ -15,15 +19,13 @@ WHERE id_usuario = $1;
 
 -- name: ListUsuarios :many
 SELECT * FROM usuario 
-ORDER BY apellido, nombre;
+ORDER BY  nombre;
 
 -- name: UpdateUsuario :exec
 UPDATE usuario 
 SET nombre = $2, 
-    apellido = $3, 
-    dni = $4, 
-    email = $5, 
-    password = $6
+    email = $3, 
+    password = $4
 WHERE id_usuario = $1;
 
 -- name: DeleteUsuario :exec
@@ -99,6 +101,11 @@ WHERE id_suscripciones = $1;
 -- name: DeleteSubscripcion :exec
 DELETE FROM suscripciones 
 WHERE id_suscripciones = $1;
+
+-- name: GetSuscripcionActiva :one
+SELECT * FROM suscripcion 
+WHERE id_usuario = $1 AND id_servicio = $2 AND estado = 'Activa' 
+LIMIT 1;
 
 
 -- consultas  de pago 

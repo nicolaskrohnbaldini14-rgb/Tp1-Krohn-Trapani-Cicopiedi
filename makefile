@@ -11,7 +11,7 @@ clean-docker:
 
 docker-up: clean-docker
 	@echo "==> Levantando PostgreSQL en Docker..."
-	@docker compose up -d
+	@docker compose up -d || docker-compose up -d
 	@echo "==> Esperando a que la base de datos esté lista..."
 	@sleep 2
 
