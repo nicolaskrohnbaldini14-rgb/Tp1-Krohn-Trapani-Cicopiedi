@@ -101,8 +101,8 @@ correspondiente.
   "monto": "2500.00",
   "fecha_inicio": "2026-01-01T00:00:00Z",
   "fecha_vencimiento": "2026-12-31T00:00:00Z",
-  "usuario_cuenta": "ana@netflix.com",
-  "password_cuenta": "clave123",
+  "usuario_cuenta": "nico@example.com",
+  "password_cuenta": "passcuenta123",
   "estado": "Activa"
 }
 ```
