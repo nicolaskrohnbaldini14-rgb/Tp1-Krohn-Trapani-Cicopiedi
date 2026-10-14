@@ -155,6 +155,10 @@ que necesita, prueba los casos exitosos y los de error de cada endpoint.
 │   ├── queries/queries.sql
 │   └── sqlc/             # Código generado por sqlc (no se versiona)
 ├── hurl/                 # Pruebas de los endpoints
+│   └── pago.hurl
+│   └── servicio.hurl
+│   └── suscripcion.hurl
+│   └── usuario.hurl              
 ├── docker-compose.yml    # PostgreSQL con healthcheck
 ├── sqlc.yaml
 └── makefile
