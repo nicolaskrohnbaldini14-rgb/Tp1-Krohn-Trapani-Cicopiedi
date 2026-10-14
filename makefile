@@ -1,13 +1,40 @@
-APP_BIN := bin/tp3-api
-HOST    := http://localhost:8080
+APP_NAME := Tp3-Krohn-Trapani-Cicopiedi
+HOST := http://localhost:8080
 HURL_FILES := hurl/usuario.hurl hurl/servicio.hurl hurl/suscripcion.hurl hurl/pago.hurl
 
-.PHONY: test-api docker-up generate build docker-down clean
+.PHONY: all run clean-docker docker-up generate build test test-api docker-down clean
 
-# Flujo completo: tareas previas, prueba de endpoints y tareas posteriores
-test-api: docker-up build
+
+all: test-api
+
+clean-docker:
+	@echo "==> Limpiando contenedores y volúmenes previos..."
+	@-docker compose down -v 2>/dev/null || true
+
+docker-up: clean-docker
+	@echo "==> Levantando PostgreSQL en Docker..."
+	@docker compose up -d --wait
+	@echo "==> La base de datos está lista (healthcheck OK)"
+
+generate: docker-up
+	@echo "==> Generando código con sqlc..."
+	@sqlc generate
+
+build: generate
+	@echo "==> Compilando ejecutable..."
+	@mkdir -p tmp
+	@go build -o ./tmp/$(APP_NAME) .
+
+
+test:
+	@echo "==> Ejecutando pruebas unitarias CRUD..."
+	@go test -v -count=1 ./...
+
+
+test-api: build
+	@$(MAKE) --no-print-directory test || { $(MAKE) --no-print-directory docker-down; exit 1; }
 	@echo "==> Levantando la aplicación..."
-	@./$(APP_BIN) & APP_PID=$$! ; \
+	@./tmp/$(APP_NAME) & APP_PID=$$! ; \
 	curl -s -o /dev/null --retry 10 --retry-connrefused --retry-delay 1 $(HOST)/usuarios ; \
 	echo "==> Probando los endpoints con Hurl..." ; \
 	hurl --test --jobs 1 --variable host=$(HOST) $(HURL_FILES) ; \
@@ -16,27 +43,13 @@ test-api: docker-up build
 	$(MAKE) --no-print-directory docker-down ; \
 	exit $$STATUS
 
-# Borra contenedores y volúmenes previos, levanta PostgreSQL y espera el healthcheck
-docker-up:
-	@echo "==> Levantando PostgreSQL..."
-	@docker compose down -v
-	@docker compose up -d --wait
 
-# Genera el código Go con sqlc
-generate:
-	@echo "==> Generando código con sqlc..."
-	@sqlc generate
-
-# Compila la aplicación
-build: generate
-	@echo "==> Compilando..."
-	@go build -o $(APP_BIN) .
-
-# Borra contenedores y volúmenes
 docker-down:
 	@echo "==> Borrando contenedores y volúmenes..."
 	@docker compose down -v
 
-# Borra además el binario y el código generado
-clean: docker-down
-	@rm -rf bin db/sqlc
+run: test-api
+	@echo "==> ¡Proceso finalizado con éxito!"
+
+clean:
+	@rm -rf tmp
