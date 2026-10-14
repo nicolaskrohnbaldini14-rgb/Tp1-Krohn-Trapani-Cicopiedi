@@ -11,6 +11,12 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql
       - ./db/schema/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d mi_tp2_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
 
 volumes:
   pgdata:

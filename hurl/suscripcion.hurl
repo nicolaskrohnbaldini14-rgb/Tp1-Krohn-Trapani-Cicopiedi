@@ -13,7 +13,7 @@ usuario_id: jsonpath "$.id_usuario"
 POST {{host}}/servicios
 Content-Type: application/json
 {
-  "nombre": "ServicioSubs-{{newUuid}}", //{{newUuid}} preguntar es un id unico y universal para que no de error
+ "nombre": "ServicioSubs-{{newUuid}}",
   "categoria": "Streaming"
 }
 HTTP 201

@@ -74,6 +74,12 @@ func NuevoServicioSuscripcion(q *sqlc.Queries) *ServicioSuscripcion {
 
 // Crear valida las FKs, fechas, monto y evita suscripciones duplicadas
 func (s *ServicioSuscripcion) Crear(ctx context.Context, entrada sqlc.CreateSubscripcionParams) (sqlc.Suscripcion, error) {
+	// Si no viene estado, por defecto la suscripción arranca como 'Activa'
+	entrada.Estado = strings.TrimSpace(entrada.Estado)
+	if entrada.Estado == "" {
+		entrada.Estado = "Activa"
+	}
+
 	if err := validarCamposSuscripcion(entrada); err != nil {
 		return sqlc.Suscripcion{}, err
 	}
@@ -343,7 +349,7 @@ func (h *ManejadorSuscripcion) responderError(w http.ResponseWriter, err error) 
 	switch {
 	case strings.Contains(msg, "no encontrada") || strings.Contains(msg, "no existe"):
 		http.Error(w, msg, http.StatusNotFound)
-	case strings.Contains(msg, "obligatorias") || strings.Contains(msg, "mayor a cero") || strings.Contains(msg, "anterior") || strings.Contains(msg, "válido"):
+	case strings.Contains(msg, "obligatoria") || strings.Contains(msg, "mayor a cero") || strings.Contains(msg, "anterior") || strings.Contains(msg, "válido"):
 		http.Error(w, msg, http.StatusBadRequest)
 	case strings.Contains(msg, "activa"):
 		http.Error(w, msg, http.StatusConflict)

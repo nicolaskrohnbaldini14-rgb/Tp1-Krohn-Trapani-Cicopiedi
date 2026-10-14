@@ -1,6 +1,3 @@
-### ============================================================================
-### SETUP: Crear Usuario -> Servicio -> Suscripción (dependencias para el pago)
-### ============================================================================
 
 # 1. Crear Usuario previo
 POST {{host}}/usuarios
@@ -141,7 +138,9 @@ body contains "obligatoria"
 ### ---------- 8. JSON inválido (400) ----------
 POST {{host}}/pagos
 Content-Type: application/json
+```
 { esto no es json }
+```
 HTTP 400
 
 

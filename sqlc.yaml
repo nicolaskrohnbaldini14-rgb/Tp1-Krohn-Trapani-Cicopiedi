@@ -5,6 +5,6 @@ sql:
     schema: "./db/schema/"
     gen:
       go:
-        package: "db"
+        package: "sqlc"
         out: "./db/sqlc/"
         emit_json_tags: true
