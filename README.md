@@ -1,20 +1,30 @@
-## Requisitos previos
+# Requisitos previos
 
 - [Go](https://go.dev/doc/install) 1.25 
 - [Docker](https://docs.docker.com/get-docker/) 
 - [sqlc](https://docs.sqlc.dev/en/latest/overview/install.html)
 - [Hurl](https://hurl.dev/docs/installation.html)
 
-## Ejecución
+# Ejecución
 
+## Clonar repositorio
 ```bash
 git clone https://github.com/nicolaskrohnbaldini14-rgb/Tp1-Krohn-Trapani-Cicopiedi.git
+```
+## Posicionarse en carpeta del proyecto
+```bash
 cd Tp1-Krohn-Trapani-Cicopiedi
+```
+## Cambiar a rama requerida
+```bash
 git checkout tp3
+```
+## Ejecutar pruebas
+```bash
 make
 ```
 
-## Documentación de persistencia
+# Documentación de persistencia
 
 El modelo de datos está compuesto por 4 tablas relacionales, definidas en
 [`db/schema/schema.sql`](db/schema/schema.sql):
@@ -49,7 +59,7 @@ que necesita con funciones auxiliares compartidas (por ejemplo, el test de
 pagos crea primero un usuario, un servicio y una suscripción). Se puede correr
 uno solo con `go test -v -run TestPago_CRUD .`
 
-## API REST
+# API REST
 
 La lógica de negocio y los handlers HTTP de cada entidad están en `logic/`, y
 las rutas se registran en `main.go`. Todas las respuestas exitosas con cuerpo
@@ -121,7 +131,7 @@ correspondiente.
 { "id_suscripcion": 1, "monto": "2500.00", "fecha_pago": "2026-06-15T00:00:00Z" }
 ```
 
-### Reglas de negocio
+# Reglas de negocio
 
 - **Usuarios:** nombre, email y password son obligatorios. El email tiene que tener un formato válido y no puede repetirse. La password nunca se devuelve en las respuestas.
 - **Servicios:** el nombre es único. La categoría debe ser una de `Streaming`, `Música`, `Software`, `Gimnasio`, `Salud`, `Financiero`, `Turismo` u `Otros`, y no se puede cambiar después de creado. No se puede borrar un servicio que tenga suscripciones.
@@ -133,13 +143,13 @@ correspondiente.
   - La `password_cuenta` nunca se devuelve en las respuestas.
 - **Pagos:** la suscripción tiene que existir, el monto tiene que ser mayor a cero y la fecha de pago no puede ser posterior al vencimiento de la suscripción.
 
-### Pruebas de los endpoints
+# Pruebas de los endpoints
 
 Las pruebas están en `hurl/`, un archivo por entidad (`usuario.hurl`,
 `servicio.hurl`, `suscripcion.hurl` y `pago.hurl`). Cada archivo crea los datos
 que necesita, prueba los casos exitosos y los de error de cada endpoint.
 
-## Estructura del proyecto
+# Estructura del proyecto
 
 ```
 .
