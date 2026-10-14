@@ -67,7 +67,7 @@ correspondiente.
 | `DELETE` | `/usuarios/{id}` | `204` · `404` |
 
 ```json
-{ "nombre": "Ana", "email": "ana@test.com", "password": "secreto" }
+{ "nombre": "Nico", "email": "nico@example.com", "password": "secreto" }
 ```
 
 ### Servicios
