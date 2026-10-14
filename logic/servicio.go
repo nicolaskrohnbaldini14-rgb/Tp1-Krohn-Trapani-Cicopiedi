@@ -8,24 +8,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
-
-// EntradaServicio representa el JSON recibido en solicitudes POST y PUT
-type EntradaServicio struct {
-	Nombre    string `json:"nombre"`
-	Categoria string `json:"categoria"`
-}
-
-// RespuestaServicio define el objeto retornado en las respuestas JSON
-type RespuestaServicio struct {
-	IDServicio int32     `json:"id_servicio"`
-	Nombre     string    `json:"nombre"`
-	Categoria  string    `json:"categoria"`
-	CreatedAt  time.Time `json:"created_at"`
-}
 
 // Categorías predefinidas según la regla de negocio (no texto libre)
 var categoriasValidas = map[string]bool{
@@ -33,11 +18,13 @@ var categoriasValidas = map[string]bool{
 	"Música":    true,
 	"Software":  true,
 	"Gimnasio":  true,
+	"Salud":     true,
+	"Financiero": true ,
+	"Turismo":   true,
 	"Otros":     true,
 }
 
-
-func validarCamposServicio(datos EntradaServicio) error {
+func validarCamposServicio(datos sqlc.CreateServicioParams) error {
 	nom := strings.TrimSpace(datos.Nombre)
 	cat := strings.TrimSpace(datos.Categoria)
 
@@ -45,24 +32,14 @@ func validarCamposServicio(datos EntradaServicio) error {
 		return fmt.Errorf("el nombre del servicio es obligatorio")
 	}
 	if cat == "" {
-		return fmt.Errorf("la categoría es obligatoria")
-	}
+    return fmt.Errorf("la categoría es obligatorio") 
+}
 	if !categoriasValidas[cat] {
-		return fmt.Errorf("la categoría '%s' no es válida (permitidas: Streaming, Música, Software, Gimnasio, Otros)", cat)
+		return fmt.Errorf("la categoría '%s' no es válida (permitidas: Streaming, Música, Software, Gimnasio,Salud,Financiero,Turismo Otros)", cat)
 	}
 
 	return nil
 }
-
-func mapearServicioARespuesta(s sqlc.Servicio) RespuestaServicio {
-	return RespuestaServicio{
-		IDServicio: s.IDServicio,
-		Nombre:     s.Nombre,
-		Categoria:  s.Categoria,
-		CreatedAt:  s.CreatedAt,
-	}
-}
-
 
 type ServicioServicio struct {
 	consultas *sqlc.Queries
@@ -73,93 +50,73 @@ func NuevoServicioServicio(q *sqlc.Queries) *ServicioServicio {
 }
 
 // Crear valida la categoría y comprueba que el nombre sea único
-func (s *ServicioServicio) Crear(ctx context.Context, entrada EntradaServicio) (RespuestaServicio, error) {
+func (s *ServicioServicio) Crear(ctx context.Context, entrada sqlc.CreateServicioParams) (sqlc.Servicio, error) {
 	if err := validarCamposServicio(entrada); err != nil {
-		return RespuestaServicio{}, err
+		return sqlc.Servicio{}, err
 	}
 
 	// Regla Miro: El nombre debe ser único
 	_, err := s.consultas.GetServicioByNombre(ctx, entrada.Nombre)
 	if err == nil {
-		return RespuestaServicio{}, fmt.Errorf("ya existe un servicio con el nombre '%s'", entrada.Nombre)
+		return sqlc.Servicio{}, fmt.Errorf("ya existe un servicio con el nombre '%s'", entrada.Nombre)
 	} else if err != sql.ErrNoRows {
-		return RespuestaServicio{}, err
+		return sqlc.Servicio{}, err
 	}
 
-	nuevo, err := s.consultas.CreateServicio(ctx, sqlc.CreateServicioParams{
-		Nombre:    entrada.Nombre,
-		Categoria: entrada.Categoria,
-	})
-	if err != nil {
-		return RespuestaServicio{}, err
-	}
-
-	return mapearServicioARespuesta(nuevo), nil
+	return s.consultas.CreateServicio(ctx, entrada)
 }
 
 // ObtenerPorID busca un servicio por id_servicio
-func (s *ServicioServicio) ObtenerPorID(ctx context.Context, id int32) (RespuestaServicio, error) {
+func (s *ServicioServicio) ObtenerPorID(ctx context.Context, id int32) (sqlc.Servicio, error) {
 	srv, err := s.consultas.GetServicio(ctx, id)
 	if err == sql.ErrNoRows {
-		return RespuestaServicio{}, fmt.Errorf("servicio no encontrado")
+		return sqlc.Servicio{}, fmt.Errorf("servicio no encontrado")
 	} else if err != nil {
-		return RespuestaServicio{}, err
+		return sqlc.Servicio{}, err
 	}
-	return mapearServicioARespuesta(srv), nil
+	return srv, nil
 }
 
 // Listar obtiene la lista de todos los servicios
-func (s *ServicioServicio) Listar(ctx context.Context) ([]RespuestaServicio, error) {
-	lista, err := s.consultas.ListServicios(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	resultado := make([]RespuestaServicio, len(lista))
-	for i, item := range lista {
-		resultado[i] = mapearServicioARespuesta(item)
-	}
-	return resultado, nil
+func (s *ServicioServicio) Listar(ctx context.Context) ([]sqlc.Servicio, error) {
+	return s.consultas.ListServicios(ctx)
 }
 
 // Actualizar modifica el nombre manteniendo la restricción de unicidad y no permitiendo cambiar la categoría
-func (s *ServicioServicio) Actualizar(ctx context.Context, id int32, entrada EntradaServicio) (RespuestaServicio, error) {
+func (s *ServicioServicio) Actualizar(ctx context.Context, id int32, entrada sqlc.UpdateServicioParams) (sqlc.Servicio, error) {
 	if strings.TrimSpace(entrada.Nombre) == "" {
-		return RespuestaServicio{}, fmt.Errorf("el nombre del servicio es obligatorio")
+		return sqlc.Servicio{}, fmt.Errorf("el nombre del servicio es obligatorio")
 	}
 
 	servicioExistente, err := s.consultas.GetServicio(ctx, id)
 	if err == sql.ErrNoRows {
-		return RespuestaServicio{}, fmt.Errorf("servicio no encontrado")
+		return sqlc.Servicio{}, fmt.Errorf("servicio no encontrado")
 	} else if err != nil {
-		return RespuestaServicio{}, err
+		return sqlc.Servicio{}, err
 	}
-
 
 	if entrada.Categoria != "" && entrada.Categoria != servicioExistente.Categoria {
-		return RespuestaServicio{}, fmt.Errorf("no se permite modificar la categoría del servicio")
+		return sqlc.Servicio{}, fmt.Errorf("no se permite modificar la categoría del servicio")
 	}
 
-	
 	if entrada.Nombre != servicioExistente.Nombre {
 		existente, err := s.consultas.GetServicioByNombre(ctx, entrada.Nombre)
 		if err == nil && existente.IDServicio != id {
-			return RespuestaServicio{}, fmt.Errorf("ya existe otro servicio registrado con el nombre '%s'", entrada.Nombre)
+			return sqlc.Servicio{}, fmt.Errorf("ya existe otro servicio registrado con el nombre '%s'", entrada.Nombre)
 		} else if err != nil && err != sql.ErrNoRows {
-			return RespuestaServicio{}, err
+			return sqlc.Servicio{}, err
 		}
 	}
 
-	err = s.consultas.UpdateServicio(ctx, sqlc.UpdateServicioParams{
-		IDServicio: id,
-		Nombre:     entrada.Nombre,
-		Categoria:  servicioExistente.Categoria,
-	})
-	if err != nil {
-		return RespuestaServicio{}, err
+	// el id siempre viene de la URL y la categoría se mantiene la existente
+	entrada.IDServicio = id
+	entrada.Categoria = servicioExistente.Categoria
+
+	if err := s.consultas.UpdateServicio(ctx, entrada); err != nil {
+		return sqlc.Servicio{}, err
 	}
 
-	return RespuestaServicio{
+	return sqlc.Servicio{
 		IDServicio: id,
 		Nombre:     entrada.Nombre,
 		Categoria:  servicioExistente.Categoria,
@@ -176,8 +133,9 @@ func (s *ServicioServicio) Eliminar(ctx context.Context, id int32) error {
 		return err
 	}
 
-// No se puede eliminar si tiene suscripciones asociadas, esto lo hacemos para que no nos devuelva unerror 
-	//generico en la base de datos y si un error conocido de logica que es el 409
+	//preguntar estoo si estabien o dejamos que lo haga la base sola
+	// No se puede eliminar si tiene suscripciones asociadas, esto lo hacemos para que no nos devuelva un error
+	// genérico en la base de datos y sí un error conocido de lógica que es el 409
 	cantidadSubs, err := s.consultas.CountSuscripcionesByServicio(ctx, id)
 	if err != nil {
 		return err
@@ -188,7 +146,6 @@ func (s *ServicioServicio) Eliminar(ctx context.Context, id int32) error {
 
 	return s.consultas.DeleteServicio(ctx, id)
 }
-
 
 type ManejadorServicio struct {
 	servicio *ServicioServicio
@@ -229,7 +186,6 @@ func (h *ManejadorServicio) ManejarServicioPorID(w http.ResponseWriter, r *http.
 	}
 }
 
-
 func (h *ManejadorServicio) obtenerTodos(w http.ResponseWriter, r *http.Request) {
 	servicios, err := h.servicio.Listar(r.Context())
 	if err != nil {
@@ -240,7 +196,7 @@ func (h *ManejadorServicio) obtenerTodos(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ManejadorServicio) crear(w http.ResponseWriter, r *http.Request) {
-	var entrada EntradaServicio
+	var entrada sqlc.CreateServicioParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
 		return
@@ -264,7 +220,7 @@ func (h *ManejadorServicio) obtenerPorID(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *ManejadorServicio) actualizar(w http.ResponseWriter, r *http.Request, id int32) {
-	var entrada EntradaServicio
+	var entrada sqlc.UpdateServicioParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
 		return

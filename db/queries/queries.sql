@@ -60,10 +60,16 @@ WHERE id_servicio = $1;
 DELETE FROM servicio 
 WHERE id_servicio = $1;
 
+-- name: GetServicioByNombre :one
+SELECT * FROM servicio WHERE nombre = $1;
+
+-- name: CountSuscripcionesByServicio :one
+SELECT COUNT(*) FROM suscripcion WHERE id_servicio = $1;
+
 -- consulta para suscripciones 
 
 -- name: CreateSubscripcion :one
-INSERT INTO suscripciones (
+INSERT INTO suscripcion (
     id_usuario, id_servicio, monto, fecha_vencimiento, fecha_inicio, usuario_cuenta, password_cuenta, estado
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8
@@ -71,12 +77,12 @@ INSERT INTO suscripciones (
 RETURNING *;
 
 -- name: GetSubscripcion :one
-SELECT * FROM suscripciones 
-WHERE id_suscripciones = $1;
+SELECT * FROM suscripcion
+WHERE id_suscripcion = $1;
 
 -- name: ListSubscripcionesUsuario :many
 SELECT 
-    sub.id_suscripciones,
+    sub.id_suscripcion,
     sub.monto,
     sub.fecha_vencimiento,
     sub.fecha_inicio,
@@ -84,26 +90,26 @@ SELECT
     sub.estado,
     ser.nombre AS servicio_nombre,
     ser.categoria AS servicio_categoria
-FROM suscripciones sub
+FROM suscripcion sub
 JOIN servicio ser ON sub.id_servicio = ser.id_servicio
 WHERE sub.id_usuario = $1
 ORDER BY ser.nombre ASC;
 
 -- name: UpdateSubscripcion :exec
-UPDATE suscripciones 
+UPDATE suscripcion
 SET monto = $2, 
     fecha_vencimiento = $3, 
     estado = $4, 
     usuario_cuenta = $5, 
     password_cuenta = $6
-WHERE id_suscripciones = $1;
+WHERE id_suscripcion = $1;
 
 -- name: DeleteSubscripcion :exec
-DELETE FROM suscripciones 
-WHERE id_suscripciones = $1;
+DELETE FROM suscripcion
+WHERE id_suscripcion = $1;
 
 -- name: GetSuscripcionActiva :one
-SELECT * FROM suscripcion 
+SELECT * FROM suscripcion
 WHERE id_usuario = $1 AND id_servicio = $2 AND estado = 'Activa' 
 LIMIT 1;
 
@@ -112,7 +118,7 @@ LIMIT 1;
 
 -- name: CreatePago :one
 INSERT INTO pago (
-    id_suscripciones, monto, fecha_pago
+    id_suscripcion, monto, fecha_pago
 ) VALUES (
     $1, $2, $3
 )
@@ -124,7 +130,7 @@ WHERE id_pago = $1;
 
 -- name: ListPagos :many
 SELECT * FROM pago 
-WHERE id_suscripciones = $1 
+WHERE id_suscripcion = $1 
 ORDER BY fecha_pago DESC;
 
 -- name: DeletePago :exec

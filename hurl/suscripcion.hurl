@@ -1,429 +1,442 @@
-# ======================================================
-# Pruebas Definitivas del Módulo de Suscripción (Hurl)
-# ======================================================
-
-# ------------------------------------------------------
-# 1. SETUP PREVIO: Crear Usuario y Servicio Auxiliares
-# ------------------------------------------------------
-
-# 1.1 Crear Usuario para la prueba
-POST http://localhost:8080/usuarios
+# ---------- Setup: usuario y servicio ----------
+POST {{host}}/usuarios
 Content-Type: application/json
 {
-  "nombre": "Usuario Prueba Suscripcion",
-  "email": "user_sub+{{newUuid}}@example.com",
-  "password": "Password123"
+  "nombre": "Usuario Suscripciones",
+  "email": "subs_{{newUuid}}@test.com",
+  "password": "secreto123"
 }
-
 HTTP 201
 [Captures]
-user_id: jsonpath "$.id_usuario"
-[Asserts]
-jsonpath "$.id_usuario" exists
+usuario_id: jsonpath "$.id_usuario"
 
-# 1.2 Crear Servicio para la prueba
-POST http://localhost:8080/servicios
+POST {{host}}/servicios
 Content-Type: application/json
 {
-  "nombre": "Servicio Sub Test {{newUuid}}",
+  "nombre": "ServicioSubs-{{newUuid}}", //{{newUuid}} preguntar es un id unico y universal para que no de error
   "categoria": "Streaming"
 }
-
 HTTP 201
 [Captures]
-service_id: jsonpath "$.id_servicio"
-[Asserts]
-jsonpath "$.id_servicio" exists
+servicio_id: jsonpath "$.id_servicio"
 
-# ------------------------------------------------------
-# 2. VALIDACIONES DE CREACIÓN (HTTP 400 / 404)
-# ------------------------------------------------------
 
-# 2.1 Error: Fecha de inicio posterior a fecha de vencimiento (400 Bad Request)
-POST http://localhost:8080/suscripciones
+# ---------- 1. Crear suscripcion (201) ----------
+POST {{host}}/suscripciones
 Content-Type: application/json
 {
-  "id_usuario": {{user_id}},
-  "id_servicio": {{service_id}},
-  "monto": 1250.50,
-  "fecha_inicio": "2026-11-12T00:00:00Z",
-  "fecha_vencimiento": "2026-10-12T00:00:00Z",
-  "usuario_cuenta": "cuenta_test@stream.com",
-  "password_cuenta": "Clave123",
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "1500.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "cuenta@test.com",
+  "password_cuenta": "clavecuenta",
   "estado": "Activa"
 }
-
-HTTP 400
-[Asserts]
-body contains "anterior"
-
-# 2.2 Error: Fechas de inicio y vencimiento iguales (400 Bad Request)
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": {{user_id}},
-  "id_servicio": {{service_id}},
-  "monto": 1250.50,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-10-12T00:00:00Z",
-  "usuario_cuenta": "cuenta_test@stream.com",
-  "password_cuenta": "Clave123",
-  "estado": "Activa"
-}
-
-HTTP 400
-[Asserts]
-body contains "anterior"
-
-# 2.3 Error: Monto menor o igual a cero (400 Bad Request)
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": {{user_id}},
-  "id_servicio": {{service_id}},
-  "monto": 0.00,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-11-12T00:00:00Z",
-  "usuario_cuenta": "cuenta_test@stream.com",
-  "password_cuenta": "Clave123",
-  "estado": "Activa"
-}
-
-HTTP 400
-[Asserts]
-body contains "monto"
-
-# 2.4 Error: Estado no permitido / inventado (400 Bad Request)
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": {{user_id}},
-  "id_servicio": {{service_id}},
-  "monto": 1250.50,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-11-12T00:00:00Z",
-  "usuario_cuenta": "cuenta_test@stream.com",
-  "password_cuenta": "Clave123",
-  "estado": "Inventada"
-}
-
-HTTP 400
-[Asserts]
-body contains "estado"
-
-# 2.5 Error: Credenciales de cuenta vacías (400 Bad Request)
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": {{user_id}},
-  "id_servicio": {{service_id}},
-  "monto": 1250.50,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-11-12T00:00:00Z",
-  "usuario_cuenta": "",
-  "password_cuenta": "",
-  "estado": "Activa"
-}
-
-HTTP 400
-[Asserts]
-body contains "credenciales"
-
-# 2.6 Error: Usuario inexistente (404 Not Found)
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": 999999999,
-  "id_servicio": {{service_id}},
-  "monto": 1250.50,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-11-12T00:00:00Z",
-  "usuario_cuenta": "cuenta_test@stream.com",
-  "password_cuenta": "Clave123",
-  "estado": "Activa"
-}
-
-HTTP 404
-[Asserts]
-body contains "el usuario especificado no existe"
-
-# 2.7 Error: Servicio inexistente (404 Not Found)
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": {{user_id}},
-  "id_servicio": 999999999,
-  "monto": 1250.50,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-11-12T00:00:00Z",
-  "usuario_cuenta": "cuenta_test@stream.com",
-  "password_cuenta": "Clave123",
-  "estado": "Activa"
-}
-
-HTTP 404
-[Asserts]
-body contains "el servicio especificado no existe"
-
-# 2.8 Error: JSON malformado enviado en texto plano (400 Bad Request)
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-`{ "id_usuario": {{user_id}}, "monto": `
-
-HTTP 400
-[Asserts]
-body contains "JSON"
-
-# ------------------------------------------------------
-# 3. CREACIÓN EXITOSA Y VERIFICACIÓN (HTTP 201)
-# ------------------------------------------------------
-
-POST http://localhost:8080/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": {{user_id}},
-  "id_servicio": {{service_id}},
-  "monto": 1250.50,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-11-12T00:00:00Z",
-  "usuario_cuenta": "nicolas+{{newUuid}}@stream.com",
-  "password_cuenta": "ClaveSecreta123",
-  "estado": "Activa"
-}
-
 HTTP 201
 [Captures]
 sub_id: jsonpath "$.id_suscripcion"
-sub_cuenta: jsonpath "$.usuario_cuenta"
 [Asserts]
-jsonpath "$.id_suscripcion" exists
-jsonpath "$.id_usuario" == {{user_id}}
-jsonpath "$.id_servicio" == {{service_id}}
-jsonpath "$.monto" == "1250.50"
+header "Content-Type" == "application/json"
+jsonpath "$.id_suscripcion" > 0
+jsonpath "$.id_usuario" == {{usuario_id}}
+jsonpath "$.id_servicio" == {{servicio_id}}
+jsonpath "$.monto" == "1500.00"
 jsonpath "$.estado" == "Activa"
-jsonpath "$.password_cuenta" not exists
+jsonpath "$.usuario_cuenta" == "cuenta@test.com"
+jsonpath "$.password_cuenta" == ""
+jsonpath "$.fecha_inicio" startsWith "2026-01-01"
+jsonpath "$.fecha_vencimiento" startsWith "2026-12-31"
 
-# ------------------------------------------------------
-# 4. REGLA DE NEGOCIO: DUPLICADO ACTIVO (HTTP 409)
-# ------------------------------------------------------
 
-POST http://localhost:8080/suscripciones
+# ---------- 2. Duplicada activa para mismo usuario y servicio (409) ----------
+POST {{host}}/suscripciones
 Content-Type: application/json
 {
-  "id_usuario": {{user_id}},
-  "id_servicio": {{service_id}},
-  "monto": 1250.50,
-  "fecha_inicio": "2026-10-12T00:00:00Z",
-  "fecha_vencimiento": "2026-11-12T00:00:00Z",
-  "usuario_cuenta": "otra_cuenta+{{newUuid}}@stream.com",
-  "password_cuenta": "Clave123",
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "900.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "otra@test.com",
+  "password_cuenta": "clave",
   "estado": "Activa"
 }
-
 HTTP 409
 [Asserts]
-body contains "ya posee una suscripción activa"
+body contains "suscripción activa"
 
-# ------------------------------------------------------
-# 5. CONSULTAS Y LECTURA (GET HTTP 200 / 400 / 404)
-# ------------------------------------------------------
 
-# 5.1 Obtener suscripción por ID (GET profundo)
-GET http://localhost:8080/suscripciones/{{sub_id}}
-
-HTTP 200
-[Asserts]
-jsonpath "$.id_suscripcion" == {{sub_id}}
-jsonpath "$.id_usuario" == {{user_id}}
-jsonpath "$.id_servicio" == {{service_id}}
-jsonpath "$.monto" == "1250.50"
-jsonpath "$.estado" == "Activa"
-jsonpath "$.usuario_cuenta" == "{{sub_cuenta}}"
-jsonpath "$.password_cuenta" not exists
-
-# 5.2 Listar suscripciones por Usuario (Acceso al elemento [0] del Array)
-GET http://localhost:8080/suscripciones/usuario/{{user_id}}
-
-HTTP 200
-[Asserts]
-jsonpath "$" count == 1
-jsonpath "$[0].id_suscripcion" == {{sub_id}}
-
-# 5.3 Obtener suscripción inexistente (404 Not Found)
-GET http://localhost:8080/suscripciones/999999999
-
+# ---------- 3. Usuario inexistente (404) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_usuario": 999999,
+  "id_servicio": {{servicio_id}},
+  "monto": "100.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
+  "estado": "Activa"
+}
 HTTP 404
 [Asserts]
-body contains "la suscripción especificada no existe"
+body contains "usuario"
 
-# 5.4 Obtener suscripción con ID no numérico (400 Bad Request)
-GET http://localhost:8080/suscripciones/abc
 
+# ---------- 4. Servicio inexistente (404) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_usuario": {{usuario_id}},
+  "id_servicio": 999999,
+  "monto": "100.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
+  "estado": "Activa"
+}
+HTTP 404
+[Asserts]
+body contains "servicio"
+
+
+# ---------- 5. IDs invalidos (400) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_usuario": 0,
+  "id_servicio": 0,
+  "monto": "100.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
+  "estado": "Activa"
+}
+HTTP 400
+
+
+# ---------- 6. Monto cero (400) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "0",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
+  "estado": "Activa"
+}
 HTTP 400
 [Asserts]
-body contains "numérico"
+body contains "mayor a cero"
 
-# ------------------------------------------------------
-# 6. ACTUALIZACIÓN (PUT HTTP 200 / 400 / 404)
-# ------------------------------------------------------
 
-# 6.1 Actualización válida de la suscripción (Pausarla)
-PUT http://localhost:8080/suscripciones/{{sub_id}}
+# ---------- 7. Monto no numerico (400) ----------
+POST {{host}}/suscripciones
 Content-Type: application/json
 {
-  "monto": 1800.00,
-  "fecha_vencimiento": "2026-12-12T00:00:00Z",
-  "usuario_cuenta": "cuenta_modificada+{{newUuid}}@stream.com",
-  "password_cuenta": "NuevaClave123",
-  "estado": "Pausada"
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "abc",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
+  "estado": "Activa"
 }
-
-HTTP 200
-[Captures]
-sub_cuenta_nueva: jsonpath "$.usuario_cuenta"
-[Asserts]
-jsonpath "$.id_suscripcion" == {{sub_id}}
-jsonpath "$.monto" == "1800.00"
-jsonpath "$.estado" == "Pausada"
-jsonpath "$.password_cuenta" not exists
-
-# 6.2 Verificar con GET que el PUT se persistió correctamente en la BD
-GET http://localhost:8080/suscripciones/{{sub_id}}
-
-HTTP 200
-[Asserts]
-jsonpath "$.monto" == "1800.00"
-jsonpath "$.estado" == "Pausada"
-jsonpath "$.usuario_cuenta" == "{{sub_cuenta_nueva}}"
-
-# 6.3 PUT con estado no permitido / inventado (400 Bad Request)
-PUT http://localhost:8080/suscripciones/{{sub_id}}
-Content-Type: application/json
-{
-  "monto": 1800.00,
-  "fecha_vencimiento": "2026-12-12T00:00:00Z",
-  "usuario_cuenta": "{{sub_cuenta_nueva}}",
-  "password_cuenta": "NuevaClave123",
-  "estado": "Inventada"
-}
-
 HTTP 400
 [Asserts]
-body contains "estado"
+body contains "número válido"
 
-# 6.4 PUT con fecha de vencimiento inválida (400 Bad Request alineado con 'anterior')
-PUT http://localhost:8080/suscripciones/{{sub_id}}
+
+# ---------- 8. Inicio posterior al vencimiento (400) ----------
+POST {{host}}/suscripciones
 Content-Type: application/json
 {
-  "monto": 1800.00,
-  "fecha_vencimiento": "2026-09-01T00:00:00Z",
-  "usuario_cuenta": "{{sub_cuenta_nueva}}",
-  "password_cuenta": "NuevaClave123",
-  "estado": "Pausada"
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "100.00",
+  "fecha_inicio": "2027-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-01-01T00:00:00Z",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
+  "estado": "Activa"
 }
-
 HTTP 400
 [Asserts]
 body contains "anterior"
 
-# 6.5 PUT con monto inválido <= 0 (400 Bad Request)
-PUT http://localhost:8080/suscripciones/{{sub_id}}
+
+# ---------- 9. Sin fechas (400) ----------
+POST {{host}}/suscripciones
 Content-Type: application/json
 {
-  "monto": -500.00,
-  "fecha_vencimiento": "2026-12-12T00:00:00Z",
-  "usuario_cuenta": "{{sub_cuenta_nueva}}",
-  "password_cuenta": "NuevaClave123",
-  "estado": "Pausada"
-}
-
-HTTP 400
-[Asserts]
-body contains "monto"
-
-# 6.6 PUT con credenciales vacías (400 Bad Request)
-PUT http://localhost:8080/suscripciones/{{sub_id}}
-Content-Type: application/json
-{
-  "monto": 1800.00,
-  "fecha_vencimiento": "2026-12-12T00:00:00Z",
-  "usuario_cuenta": "",
-  "password_cuenta": "",
-  "estado": "Pausada"
-}
-
-HTTP 400
-[Asserts]
-body contains "credenciales"
-
-# 6.7 PUT con JSON malformado (400 Bad Request)
-PUT http://localhost:8080/suscripciones/{{sub_id}}
-Content-Type: application/json
-`{ "monto": 1800.00, "estado": `
-
-HTTP 400
-[Asserts]
-body contains "JSON"
-
-# 6.8 PUT sobre suscripción inexistente (404 Not Found)
-PUT http://localhost:8080/suscripciones/999999999
-Content-Type: application/json
-{
-  "monto": 1800.00,
-  "fecha_vencimiento": "2026-12-12T00:00:00Z",
-  "usuario_cuenta": "fantasma@stream.com",
-  "password_cuenta": "Clave123",
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "100.00",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
   "estado": "Activa"
 }
-
-HTTP 404
-[Asserts]
-body contains "la suscripción especificada no existe"
-
-# ------------------------------------------------------
-# 7. MÉTODOS NO PERMITIDOS Y ELIMINACIÓN (HTTP 405 / 400 / 404 / 204)
-# ------------------------------------------------------
-
-# 7.1 Método PATCH no implementado (405 Method Not Allowed)
-PATCH http://localhost:8080/suscripciones/{{sub_id}}
-
-HTTP 405
-[Asserts]
-body contains "permitido"
-
-# 7.2 DELETE con ID no numérico (400 Bad Request)
-DELETE http://localhost:8080/suscripciones/abc
-
 HTTP 400
 [Asserts]
-body contains "numérico"
+body contains "obligatorias"
 
-# 7.3 Eliminar suscripción inexistente (404 Not Found)
-DELETE http://localhost:8080/suscripciones/999999999
 
+# ---------- 10. Sin credenciales de cuenta (400) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "100.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "",
+  "password_cuenta": "",
+  "estado": "Activa"
+}
+HTTP 400
+[Asserts]
+body contains "obligatorias"
+
+
+# ---------- 11. Estado invalido (400) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "100.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "clave",
+  "estado": "Inventada"
+}
+HTTP 400
+[Asserts]
+body contains "no es válido"
+
+
+# ---------- 12. JSON invalido (400) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+```
+{ esto no es json}
+```
+HTTP 400
+
+
+# ---------- 13. Obtener por ID (200) ----------
+GET {{host}}/suscripciones/{{sub_id}}
+HTTP 200
+[Asserts]
+jsonpath "$.id_suscripcion" == {{sub_id}}
+jsonpath "$.estado" == "Activa"
+jsonpath "$.password_cuenta" == ""
+
+
+# ---------- 14. Obtener inexistente (404) ----------
+GET {{host}}/suscripciones/999999
 HTTP 404
 [Asserts]
-body contains "la suscripción especificada no existe"
+body contains "no encontrada"
 
-# 7.4 LIMPIEZA ORDENADA
-# A. Eliminar Suscripción
-DELETE http://localhost:8080/suscripciones/{{sub_id}}
 
-HTTP 204
+# ---------- 15. ID no numerico (400) ----------
+GET {{host}}/suscripciones/abc
+HTTP 400
 
-# B. Confirmar que la suscripción ya no existe en la BD
-GET http://localhost:8080/suscripciones/{{sub_id}}
 
-HTTP 404
+# ---------- 16. Actualizar monto y estado (200) ----------
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "1999.50",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Pausada",
+  "usuario_cuenta": "nuevacuenta@test.com",
+  "password_cuenta": "nuevaclave"
+}
+HTTP 200
 [Asserts]
-body contains "la suscripción especificada no existe"
+jsonpath "$.id_suscripcion" == {{sub_id}}
+jsonpath "$.monto" == "1999.50"
+jsonpath "$.estado" == "Pausada"
+jsonpath "$.usuario_cuenta" == "nuevacuenta@test.com"
+jsonpath "$.fecha_vencimiento" startsWith "2027-06-30"
+jsonpath "$.fecha_inicio" startsWith "2026-01-01"
+jsonpath "$.password_cuenta" == ""
 
-# C. Eliminar Servicio auxiliar
-DELETE http://localhost:8080/servicios/{{service_id}}
 
+# ---------- 17. Verificar que persistio ----------
+GET {{host}}/suscripciones/{{sub_id}}
+HTTP 200
+[Asserts]
+jsonpath "$.estado" == "Pausada"
+jsonpath "$.monto" == "1999.50"
+
+
+# ---------- 18. Actualizar con estado invalido (400) ----------
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "100.00",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Inventada",
+  "usuario_cuenta": "a@test.com",
+  "password_cuenta": "clave"
+}
+HTTP 400
+[Asserts]
+body contains "no es válido"
+
+
+# ---------- 19. Actualizar con monto cero (400) ----------
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "0",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Pausada",
+  "usuario_cuenta": "a@test.com",
+  "password_cuenta": "clave"
+}
+HTTP 400
+
+
+# ---------- 20. Vencimiento anterior al inicio (400) ----------
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "100.00",
+  "fecha_vencimiento": "2025-01-01T00:00:00Z",
+  "estado": "Pausada",
+  "usuario_cuenta": "a@test.com",
+  "password_cuenta": "clave"
+}
+HTTP 400
+[Asserts]
+body contains "anterior"
+
+
+# ---------- 21. Actualizar inexistente (404) ----------
+PUT {{host}}/suscripciones/999999
+Content-Type: application/json
+{
+  "monto": "100.00",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Pausada",
+  "usuario_cuenta": "a@test.com",
+  "password_cuenta": "clave"
+}
+HTTP 404
+
+
+# ---------- 22. Reactivar con otra activa existente (409) ----------
+# La sub1 esta Pausada, asi que puedo crear una segunda Activa
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_usuario": {{usuario_id}},
+  "id_servicio": {{servicio_id}},
+  "monto": "800.00",
+  "fecha_inicio": "2026-02-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "segunda@test.com",
+  "password_cuenta": "clave2",
+  "estado": "Activa"
+}
+HTTP 201
+[Captures]
+sub2_id: jsonpath "$.id_suscripcion"
+
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "1999.50",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Activa",
+  "usuario_cuenta": "nuevacuenta@test.com",
+  "password_cuenta": "nuevaclave"
+}
+HTTP 409
+[Asserts]
+body contains "suscripción activa"
+
+
+# ---------- 23. Cancelar la segunda y ahora si reactivar la primera (200) ----------
+PUT {{host}}/suscripciones/{{sub2_id}}
+Content-Type: application/json
+{
+  "monto": "800.00",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "estado": "Cancelada",
+  "usuario_cuenta": "segunda@test.com",
+  "password_cuenta": "clave2"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.estado" == "Cancelada"
+
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "1999.50",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Activa",
+  "usuario_cuenta": "nuevacuenta@test.com",
+  "password_cuenta": "nuevaclave"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.estado" == "Activa"
+
+
+# ---------- 24. Listar por usuario (200) ----------
+GET {{host}}/suscripciones/usuario/{{usuario_id}}
+HTTP 200
+[Asserts]
+jsonpath "$" count == 2
+jsonpath "$[0].servicio_nombre" exists
+jsonpath "$[0].servicio_categoria" == "Streaming"
+jsonpath "$[0].password_cuenta" not exists
+
+
+# ---------- 25. Metodos no permitidos (405) ----------
+GET {{host}}/suscripciones
+HTTP 405
+
+PATCH {{host}}/suscripciones/{{sub_id}}
+HTTP 405
+
+POST {{host}}/suscripciones/usuario/{{usuario_id}}
+HTTP 405
+
+
+# ---------- 26. Eliminar (204) y verificar (404) ----------
+DELETE {{host}}/suscripciones/{{sub2_id}}
 HTTP 204
 
-# D. Eliminar Usuario auxiliar
-DELETE http://localhost:8080/usuarios/{{user_id}}
+GET {{host}}/suscripciones/{{sub2_id}}
+HTTP 404
 
+DELETE {{host}}/suscripciones/{{sub2_id}}
+HTTP 404
+
+
+# ---------- Limpieza ----------
+# Borrar el usuario elimina la suscripcion restante (CASCADE)
+DELETE {{host}}/usuarios/{{usuario_id}}
+HTTP 204
+
+DELETE {{host}}/servicios/{{servicio_id}}
 HTTP 204

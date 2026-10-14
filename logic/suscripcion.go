@@ -8,35 +8,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
-
-// EntradaSuscripcion representa el JSON recibido en solicitudes de creación y actualización
-type EntradaSuscripcion struct {
-	IDUsuario        int32     `json:"id_usuario"`
-	IDServicio       int32     `json:"id_servicio"`
-	Monto            float64   `json:"monto"`
-	FechaVencimiento time.Time `json:"fecha_vencimiento"`
-	FechaInicio      time.Time `json:"fecha_inicio"`
-	UsuarioCuenta    string    `json:"usuario_cuenta"`
-	PasswordCuenta   string    `json:"password_cuenta"`
-	Estado           string    `json:"estado"`
-}
-
-// RespuestaSuscripcion define la salida JSON enviada al cliente
-type RespuestaSuscripcion struct {
-	IDSuscripcion    int32     `json:"id_suscripcion"`
-	IDUsuario        int32     `json:"id_usuario"`
-	IDServicio       int32     `json:"id_servicio"`
-	Monto            string    `json:"monto"`
-	FechaVencimiento time.Time `json:"fecha_vencimiento"`
-	FechaInicio      time.Time `json:"fecha_inicio"`
-	UsuarioCuenta    string    `json:"usuario_cuenta"`
-	Estado           string    `json:"estado"`
-	CreatedAt        time.Time `json:"created_at"`
-}
 
 // Estados permitidos según las reglas de negocio
 var estadosValidos = map[string]bool{
@@ -45,12 +19,26 @@ var estadosValidos = map[string]bool{
 	"Cancelada": true,
 }
 
-func validarCamposSuscripcion(datos EntradaSuscripcion) error {
+
+// pregunta si esta bien esto o lo cambiamos en el schema
+// parsearMonto convierte el monto (string en sqlc) a número y valida que sea > 0
+func parsearMonto(monto string) (float64, error) {
+	valor, err := strconv.ParseFloat(strings.TrimSpace(monto), 64)
+	if err != nil {
+		return 0, fmt.Errorf("el monto debe ser un número válido")
+	}
+	if valor <= 0 {
+		return 0, fmt.Errorf("el monto debe ser mayor a cero")
+	}
+	return valor, nil
+}
+
+func validarCamposSuscripcion(datos sqlc.CreateSubscripcionParams) error {
 	if datos.IDUsuario <= 0 || datos.IDServicio <= 0 {
 		return fmt.Errorf("los identificadores id_usuario e id_servicio deben ser válidos")
 	}
-	if datos.Monto <= 0 {
-		return fmt.Errorf("el monto debe ser mayor a cero")
+	if _, err := parsearMonto(datos.Monto); err != nil {
+		return err
 	}
 	if datos.FechaInicio.IsZero() || datos.FechaVencimiento.IsZero() {
 		return fmt.Errorf("las fechas de inicio y vencimiento son obligatorias")
@@ -70,19 +58,10 @@ func validarCamposSuscripcion(datos EntradaSuscripcion) error {
 	return nil
 }
 
-func mapearSuscripcionARespuesta(sub sqlc.Suscripcion) RespuestaSuscripcion {
-	
-	return RespuestaSuscripcion{
-		IDSuscripcion:    sub.IDSuscripcion,
-		IDUsuario:        sub.IDUsuario,
-		IDServicio:       sub.IDServicio,
-		Monto:            sub.Monto,
-		FechaVencimiento: sub.FechaVencimiento,
-		FechaInicio:      sub.FechaInicio,
-		UsuarioCuenta:    sub.UsuarioCuenta,
-		Estado:           estadoTexto,
-		CreatedAt:        sub.CreatedAt,
-	}
+// ocultarPasswordCuenta evita devolver la contraseña de la cuenta al cliente
+func ocultarPasswordCuenta(sub sqlc.Suscripcion) sqlc.Suscripcion {
+	sub.PasswordCuenta = ""
+	return sub
 }
 
 type ServicioSuscripcion struct {
@@ -94,149 +73,126 @@ func NuevoServicioSuscripcion(q *sqlc.Queries) *ServicioSuscripcion {
 }
 
 // Crear valida las FKs, fechas, monto y evita suscripciones duplicadas
-func (s *ServicioSuscripcion) Crear(ctx context.Context, entrada EntradaSuscripcion) (RespuestaSuscripcion, error) {
+func (s *ServicioSuscripcion) Crear(ctx context.Context, entrada sqlc.CreateSubscripcionParams) (sqlc.Suscripcion, error) {
 	if err := validarCamposSuscripcion(entrada); err != nil {
-		return RespuestaSuscripcion{}, err
+		return sqlc.Suscripcion{}, err
 	}
 
 	// 1. Verificar que el usuario exista
 	_, err := s.consultas.GetUsuario(ctx, entrada.IDUsuario)
 	if err == sql.ErrNoRows {
-		return RespuestaSuscripcion{}, fmt.Errorf("el usuario especificado no existe")
+		return sqlc.Suscripcion{}, fmt.Errorf("el usuario especificado no existe")
 	} else if err != nil {
-		return RespuestaSuscripcion{}, err
+		return sqlc.Suscripcion{}, err
 	}
 
 	// 2. Verificar que el servicio exista
 	_, err = s.consultas.GetServicio(ctx, entrada.IDServicio)
 	if err == sql.ErrNoRows {
-		return RespuestaSuscripcion{}, fmt.Errorf("el servicio especificado no existe")
+		return sqlc.Suscripcion{}, fmt.Errorf("el servicio especificado no existe")
 	} else if err != nil {
-		return RespuestaSuscripcion{}, err
+		return sqlc.Suscripcion{}, err
 	}
 
-	// 3. Regla de negocio: Verificar si ya existe una suscripción activa para este usuario y servicio
+	//  Verificar si ya existe una suscripción activa para este usuario y servicio
 	activa, err := s.consultas.GetSuscripcionActiva(ctx, sqlc.GetSuscripcionActivaParams{
 		IDUsuario:  entrada.IDUsuario,
 		IDServicio: entrada.IDServicio,
 	})
 	if err == nil && activa.IDSuscripcion > 0 {
-		return RespuestaSuscripcion{}, fmt.Errorf("el usuario ya posee una suscripción activa para este servicio")
+		return sqlc.Suscripcion{}, fmt.Errorf("el usuario ya posee una suscripción activa para este servicio")
 	} else if err != nil && err != sql.ErrNoRows {
-		return RespuestaSuscripcion{}, err
+		return sqlc.Suscripcion{}, err
 	}
 
+	// el monto ya fue validado en validarCamposSuscripcion
+	monto, _ := parsearMonto(entrada.Monto)
+	entrada.Monto = fmt.Sprintf("%.2f", monto)
 
-	montoTexto := fmt.Sprintf("%.2f", entrada.Monto)
-
-	nueva, err := s.consultas.CreateSuscripcion(ctx, sqlc.CreateSuscripcionParams{
-		IDUsuario:        entrada.IDUsuario,
-		IDServicio:       entrada.IDServicio,
-		Monto:            montoTexto,
-		FechaVencimiento: entrada.FechaVencimiento,
-		FechaInicio:      entrada.FechaInicio,
-		UsuarioCuenta:    entrada.UsuarioCuenta,
-		PasswordCuenta:   entrada.PasswordCuenta,
-		Estado:           entrada.Estado,
-	})
+	nueva, err := s.consultas.CreateSubscripcion(ctx, entrada)
 	if err != nil {
-		return RespuestaSuscripcion{}, err
+		return sqlc.Suscripcion{}, err
 	}
 
-	return mapearSuscripcionARespuesta(nueva), nil
+	return ocultarPasswordCuenta(nueva), nil
 }
 
 // ObtenerPorID busca una suscripción por id_suscripcion
-func (s *ServicioSuscripcion) ObtenerPorID(ctx context.Context, id int32) (RespuestaSuscripcion, error) {
-	sub, err := s.consultas.GetSuscripcion(ctx, id)
+func (s *ServicioSuscripcion) ObtenerPorID(ctx context.Context, id int32) (sqlc.Suscripcion, error) {
+	sub, err := s.consultas.GetSubscripcion(ctx, id)
 	if err == sql.ErrNoRows {
-		return RespuestaSuscripcion{}, fmt.Errorf("suscripción no encontrada")
+		return sqlc.Suscripcion{}, fmt.Errorf("suscripción no encontrada")
 	} else if err != nil {
-		return RespuestaSuscripcion{}, err
+		return sqlc.Suscripcion{}, err
 	}
-	return mapearSuscripcionARespuesta(sub), nil
+	return ocultarPasswordCuenta(sub), nil
 }
 
 // ListarPorUsuario trae todas las suscripciones registradas para un usuario
-func (s *ServicioSuscripcion) ListarPorUsuario(ctx context.Context, idUsuario int32) ([]RespuestaSuscripcion, error) {
-	lista, err := s.consultas.ListSuscripcionesUsuario(ctx, idUsuario)
-	if err != nil {
-		return nil, err
-	}
-
-	resultado := make([]RespuestaSuscripcion, len(lista))
-	for i, sub := range lista {
-		resultado[i] = mapearSuscripcionARespuesta(sub)
-	}
-	return resultado, nil
+func (s *ServicioSuscripcion) ListarPorUsuario(ctx context.Context, idUsuario int32) ([]sqlc.ListSubscripcionesUsuarioRow, error) {
+	return s.consultas.ListSubscripcionesUsuario(ctx, idUsuario)
 }
 
 // Actualizar modifica el monto, vencimiento, credenciales o estado de una suscripción
-func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada EntradaSuscripcion) (RespuestaSuscripcion, error) {
+func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada sqlc.UpdateSubscripcionParams) (sqlc.Suscripcion, error) {
 	// 1. Validaciones básicas de entrada
-	if entrada.Monto <= 0 {
-		return RespuestaSuscripcion{}, fmt.Errorf("el monto debe ser mayor a cero")
+	monto, err := parsearMonto(entrada.Monto)
+	if err != nil {
+		return sqlc.Suscripcion{}, err
 	}
 	if entrada.FechaVencimiento.IsZero() {
-		return RespuestaSuscripcion{}, fmt.Errorf("la fecha de vencimiento es obligatoria")
+		return sqlc.Suscripcion{}, fmt.Errorf("la fecha de vencimiento es obligatoria")
 	}
 	if strings.TrimSpace(entrada.UsuarioCuenta) == "" || strings.TrimSpace(entrada.PasswordCuenta) == "" {
-		return RespuestaSuscripcion{}, fmt.Errorf("las credenciales de la cuenta son obligatorias")
+		return sqlc.Suscripcion{}, fmt.Errorf("las credenciales de la cuenta son obligatorias")
 	}
 
 	// 2. Validar que el estado sea uno de los permitidos
 	est := strings.TrimSpace(entrada.Estado)
-	estadosValidos := map[string]bool{"Activa": true, "Pausada": true, "Cancelada": true}
 	if !estadosValidos[est] {
-		return RespuestaSuscripcion{}, fmt.Errorf("el estado '%s' no es válido (permitidos: Activa, Pausada, Cancelada)", est)
+		return sqlc.Suscripcion{}, fmt.Errorf("el estado '%s' no es válido (permitidos: Activa, Pausada, Cancelada)", est)
 	}
 
 	// 3. Buscar la suscripción existente en la base de datos
 	subExistente, err := s.consultas.GetSubscripcion(ctx, id)
 	if err == sql.ErrNoRows {
-		return RespuestaSuscripcion{}, fmt.Errorf("la suscripción especificada no existe")
+		return sqlc.Suscripcion{}, fmt.Errorf("la suscripción especificada no existe")
 	} else if err != nil {
-		return RespuestaSuscripcion{}, err
+		return sqlc.Suscripcion{}, err
 	}
 
 	// 4. Validar coherencia de fechas (la fecha de inicio debe ser anterior al vencimiento)
 	if !subExistente.FechaInicio.Before(entrada.FechaVencimiento) {
-		return RespuestaSuscripcion{}, fmt.Errorf("la fecha de inicio debe ser anterior a la fecha de vencimiento")
+		return sqlc.Suscripcion{}, fmt.Errorf("la fecha de inicio debe ser anterior a la fecha de vencimiento")
 	}
 
-	// 5. Regla Miro: Si se intenta reactivar (pasar a 'Activa'), verificar que no posea OTRA suscripción activa para este servicio
+	// 5. Si se intenta reactivar (pasar a 'Activa'), verificar que no posea OTRA suscripción activa para este servicio
 	if est == "Activa" && subExistente.Estado != "Activa" {
-		existente, err := s.consultas.GetSuscripcionActivaByUsuarioYServicio(ctx, sqlc.GetSuscripcionActivaByUsuarioYServicioParams{
+		existente, err := s.consultas.GetSuscripcionActiva(ctx, sqlc.GetSuscripcionActivaParams{
 			IDUsuario:  subExistente.IDUsuario,
 			IDServicio: subExistente.IDServicio,
 		})
 		if err == nil && existente.IDSuscripcion != id {
-			return RespuestaSuscripcion{}, fmt.Errorf("el usuario ya posee una suscripción activa para este servicio")
+			return sqlc.Suscripcion{}, fmt.Errorf("el usuario ya posee una suscripción activa para este servicio")
 		}
 	}
 
-	// 6. Formatear monto
-	montoTexto := fmt.Sprintf("%.2f", entrada.Monto)
+	// 6. Formatear monto y completar los datos que no vienen del body
+	entrada.IDSuscripcion = id // el id siempre viene de la URL
+	entrada.Monto = fmt.Sprintf("%.2f", monto)
+	entrada.Estado = est
 
 	// 7. Actualizar en la base de datos vía sqlc
-	err = s.consultas.UpdateSuscripcion(ctx, sqlc.UpdateSuscripcionParams{
-		IDSuscripcion:    id,
-		Monto:            montoTexto,
-		FechaVencimiento: entrada.FechaVencimiento,
-		Estado:           est,
-		UsuarioCuenta:    entrada.UsuarioCuenta,
-		PasswordCuenta:   entrada.PasswordCuenta,
-	})
-	if err != nil {
-		return RespuestaSuscripcion{}, err
+	if err := s.consultas.UpdateSubscripcion(ctx, entrada); err != nil {
+		return sqlc.Suscripcion{}, err
 	}
 
-	// 8. Construir DTO de respuesta
-	return RespuestaSuscripcion{
+	// 8. Construir la respuesta (sin password_cuenta)
+	return sqlc.Suscripcion{
 		IDSuscripcion:    id,
 		IDUsuario:        subExistente.IDUsuario,
 		IDServicio:       subExistente.IDServicio,
-		Monto:            montoTexto,
+		Monto:            entrada.Monto,
 		FechaInicio:      subExistente.FechaInicio,
 		FechaVencimiento: entrada.FechaVencimiento,
 		UsuarioCuenta:    entrada.UsuarioCuenta,
@@ -244,16 +200,17 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 		CreatedAt:        subExistente.CreatedAt,
 	}, nil
 }
+
 // Eliminar quita la suscripción previa comprobación
 func (s *ServicioSuscripcion) Eliminar(ctx context.Context, id int32) error {
-	_, err := s.consultas.GetSuscripcion(ctx, id)
+	_, err := s.consultas.GetSubscripcion(ctx, id)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("suscripción no encontrada")
 	} else if err != nil {
 		return err
 	}
 
-	return s.consultas.DeleteSuscripcion(ctx, id)
+	return s.consultas.DeleteSubscripcion(ctx, id)
 }
 
 type ManejadorSuscripcion struct {
@@ -309,7 +266,7 @@ func (h *ManejadorSuscripcion) ManejarSuscripcionesPorUsuario(w http.ResponseWri
 }
 
 func (h *ManejadorSuscripcion) crear(w http.ResponseWriter, r *http.Request) {
-	var entrada EntradaSuscripcion
+	var entrada sqlc.CreateSubscripcionParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
 		return
@@ -333,7 +290,7 @@ func (h *ManejadorSuscripcion) obtenerPorID(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ManejadorSuscripcion) actualizar(w http.ResponseWriter, r *http.Request, id int32) {
-	var entrada EntradaSuscripcion
+	var entrada sqlc.UpdateSubscripcionParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
 		return
@@ -366,7 +323,7 @@ func (h *ManejadorSuscripcion) obtenerPorUsuario(w http.ResponseWriter, r *http.
 
 func (h *ManejadorSuscripcion) extraerID(w http.ResponseWriter, r *http.Request) (int32, bool) {
 	partes := strings.Split(r.URL.Path, "/")
-	if len(partes) < 3 || partes == "" {
+	if len(partes) < 3 || partes[len(partes)-1] == "" {
 		http.Error(w, "ID no especificado", http.StatusBadRequest)
 		return 0, false
 	}

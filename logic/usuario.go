@@ -9,25 +9,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
-
-// EntradaUsuario representa la información enviada en el JSON
-type EntradaUsuario struct {
-	Nombre   string `json:"nombre"`
-	Correo   string `json:"email"`
-	Password string `json:"password"`
-}
-
-// RespuestaUsuario es el objeto retornado al cliente (sin la contraseña)
-type RespuestaUsuario struct {
-	IDUsuario int32     `json:"id_usuario"`
-	Nombre    string    `json:"nombre"`
-	Correo    string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-}
 
 func validarCorreo(correo string) error {
 	patron := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
@@ -38,24 +22,20 @@ func validarCorreo(correo string) error {
 	return nil
 }
 
-func validarCamposUsuario(datos EntradaUsuario) error {
-	if strings.TrimSpace(datos.Nombre) == "" ||
-		strings.TrimSpace(datos.Correo) == "" ||
-		strings.TrimSpace(datos.Password) == "" {
+func validarCamposUsuario(nombre, email, password string) error {
+	if strings.TrimSpace(nombre) == "" ||
+		strings.TrimSpace(email) == "" ||
+		strings.TrimSpace(password) == "" {
 		return fmt.Errorf("los campos nombre, email y password son obligatorios")
 	}
-	return validarCorreo(datos.Correo)
+	return validarCorreo(email)
 }
 
-func mapearUsuarioARespuesta(u sqlc.Usuario) RespuestaUsuario {
-	return RespuestaUsuario{
-		IDUsuario: u.IDUsuario,
-		Nombre:    u.Nombre,
-		Correo:    [se quitó el vínculo sospechoso],
-		CreatedAt: u.CreatedAt,
-	}
+// ocultarPassword evita devolver la contraseña al cliente
+func ocultarPassword(u sqlc.Usuario) sqlc.Usuario {
+	u.Password = ""
+	return u
 }
-
 
 type ServicioUsuario struct {
 	consultas *sqlc.Queries
@@ -66,91 +46,83 @@ func NuevoServicioUsuario(q *sqlc.Queries) *ServicioUsuario {
 }
 
 // Crear aplica las validaciones y verifica que el correo no esté registrado
-func (s *ServicioUsuario) Crear(ctx context.Context, entrada EntradaUsuario) (RespuestaUsuario, error) {
-	if err := validarCamposUsuario(entrada); err != nil {
-		return RespuestaUsuario{}, err
+func (s *ServicioUsuario) Crear(ctx context.Context, entrada sqlc.CreateUsuarioParams) (sqlc.Usuario, error) {
+	if err := validarCamposUsuario(entrada.Nombre, entrada.Email, entrada.Password); err != nil {
+		return sqlc.Usuario{}, err
 	}
 
-	_, err := s.consultas.GetUsuarioByEmail(ctx, entrada.Correo)
+	_, err := s.consultas.GetUsuarioByEmail(ctx, entrada.Email)
 	if err == nil {
-		return RespuestaUsuario{}, fmt.Errorf("el correo electrónico ya está registrado")
+		return sqlc.Usuario{}, fmt.Errorf("el correo electrónico ya está registrado")
 	} else if err != sql.ErrNoRows {
-		return RespuestaUsuario{}, err
+		return sqlc.Usuario{}, err
 	}
 
-	nuevo, err := s.consultas.CreateUsuario(ctx, sqlc.CreateUsuarioParams{
-		Nombre:   entrada.Nombre,
-		Email:    entrada.Correo,
-		Password: entrada.Password,
-	})
+	nuevo, err := s.consultas.CreateUsuario(ctx, entrada)
 	if err != nil {
-		return RespuestaUsuario{}, err
+		return sqlc.Usuario{}, err
 	}
 
-	return mapearUsuarioARespuesta(nuevo), nil
+	return ocultarPassword(nuevo), nil
 }
 
 // ObtenerPorID busca un usuario por su identificador único
-func (s *ServicioUsuario) ObtenerPorID(ctx context.Context, id int32) (RespuestaUsuario, error) {
+func (s *ServicioUsuario) ObtenerPorID(ctx context.Context, id int32) (sqlc.Usuario, error) {
 	usr, err := s.consultas.GetUsuario(ctx, id)
 	if err == sql.ErrNoRows {
-		return RespuestaUsuario{}, fmt.Errorf("usuario no encontrado")
+		return sqlc.Usuario{}, fmt.Errorf("usuario no encontrado")
 	} else if err != nil {
-		return RespuestaUsuario{}, err
+		return sqlc.Usuario{}, err
 	}
-	return mapearUsuarioARespuesta(usr), nil
+	return ocultarPassword(usr), nil
 }
 
 // Listar recupera la lista completa de usuarios
-func (s *ServicioUsuario) Listar(ctx context.Context) ([]RespuestaUsuario, error) {
+func (s *ServicioUsuario) Listar(ctx context.Context) ([]sqlc.Usuario, error) {
 	lista, err := s.consultas.ListUsuarios(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	resultado := make([]RespuestaUsuario, len(lista))
+	resultado := make([]sqlc.Usuario, len(lista))
 	for i, u := range lista {
-		resultado[i] = mapearUsuarioARespuesta(u)
+		resultado[i] = ocultarPassword(u)
 	}
 	return resultado, nil
 }
 
 // Actualizar modifica los datos del usuario cuidando la existencia y la unicidad de email
-func (s *ServicioUsuario) Actualizar(ctx context.Context, id int32, entrada EntradaUsuario) (RespuestaUsuario, error) {
-	if err := validarCamposUsuario(entrada); err != nil {
-		return RespuestaUsuario{}, err
+func (s *ServicioUsuario) Actualizar(ctx context.Context, id int32, entrada sqlc.UpdateUsuarioParams) (sqlc.Usuario, error) {
+	if err := validarCamposUsuario(entrada.Nombre, entrada.Email, entrada.Password); err != nil {
+		return sqlc.Usuario{}, err
 	}
 
 	usuarioExistente, err := s.consultas.GetUsuario(ctx, id)
 	if err == sql.ErrNoRows {
-		return RespuestaUsuario{}, fmt.Errorf("usuario no encontrado")
+		return sqlc.Usuario{}, fmt.Errorf("usuario no encontrado")
 	} else if err != nil {
-		return RespuestaUsuario{}, err
+		return sqlc.Usuario{}, err
 	}
 
-	if entrada.Correo != [se quitó el vínculo sospechoso] {
-		existente, err := s.consultas.GetUsuarioByEmail(ctx, entrada.Correo)
+	if entrada.Email != usuarioExistente.Email {
+		existente, err := s.consultas.GetUsuarioByEmail(ctx, entrada.Email)
 		if err == nil && existente.IDUsuario != id {
-			return RespuestaUsuario{}, fmt.Errorf("el correo electrónico ya está en uso por otro usuario")
+			return sqlc.Usuario{}, fmt.Errorf("el correo electrónico ya está en uso por otro usuario")
 		} else if err != nil && err != sql.ErrNoRows {
-			return RespuestaUsuario{}, err
+			return sqlc.Usuario{}, err
 		}
 	}
 
-	err = s.consultas.UpdateUsuario(ctx, sqlc.UpdateUsuarioParams{
-		IDUsuario: id,
-		Nombre:    entrada.Nombre,
-		Email:     entrada.Correo,
-		Password:  entrada.Password,
-	})
-	if err != nil {
-		return RespuestaUsuario{}, err
+	// el id siempre viene de la URL, no del body
+	entrada.IDUsuario = id
+	if err := s.consultas.UpdateUsuario(ctx, entrada); err != nil {
+		return sqlc.Usuario{}, err
 	}
 
-	return RespuestaUsuario{
+	return sqlc.Usuario{
 		IDUsuario: id,
 		Nombre:    entrada.Nombre,
-		Correo:    entrada.Correo,
+		Email:     entrada.Email,
 		CreatedAt: usuarioExistente.CreatedAt,
 	}, nil
 }
@@ -166,7 +138,6 @@ func (s *ServicioUsuario) Eliminar(ctx context.Context, id int32) error {
 
 	return s.consultas.DeleteUsuario(ctx, id)
 }
-
 
 type ManejadorUsuario struct {
 	servicio *ServicioUsuario
@@ -207,7 +178,6 @@ func (h *ManejadorUsuario) ManejarUsuarioPorID(w http.ResponseWriter, r *http.Re
 	}
 }
 
-
 func (h *ManejadorUsuario) obtenerTodos(w http.ResponseWriter, r *http.Request) {
 	usuarios, err := h.servicio.Listar(r.Context())
 	if err != nil {
@@ -218,7 +188,7 @@ func (h *ManejadorUsuario) obtenerTodos(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ManejadorUsuario) crear(w http.ResponseWriter, r *http.Request) {
-	var entrada EntradaUsuario
+	var entrada sqlc.CreateUsuarioParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
 		return
@@ -242,7 +212,7 @@ func (h *ManejadorUsuario) obtenerPorID(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *ManejadorUsuario) actualizar(w http.ResponseWriter, r *http.Request, id int32) {
-	var entrada EntradaUsuario
+	var entrada sqlc.UpdateUsuarioParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
 		return
@@ -266,12 +236,12 @@ func (h *ManejadorUsuario) eliminar(w http.ResponseWriter, r *http.Request, id i
 
 func (h *ManejadorUsuario) extraerID(w http.ResponseWriter, r *http.Request) (int32, bool) {
 	partes := strings.Split(r.URL.Path, "/")
-	if len(partes) < 3 || partes == "" {
+	if len(partes) < 3 || partes[2] == "" {
 		http.Error(w, "ID de usuario no especificado", http.StatusBadRequest)
 		return 0, false
 	}
 
-	idNum, err := strconv.Atoi(partes)
+	idNum, err := strconv.Atoi(partes[2])
 	if err != nil {
 		http.Error(w, "El ID de usuario debe ser numérico", http.StatusBadRequest)
 		return 0, false
