@@ -150,7 +150,6 @@ que necesita, prueba los casos exitosos y los de error de cada endpoint.
 │   ├── servicio.go
 │   ├── suscripcion.go
 │   ├── pago.go
-│   └── errores.go
 ├── db/
 │   ├── schema/schema.sql # Tablas y claves foráneas
 │   ├── queries/queries.sql
