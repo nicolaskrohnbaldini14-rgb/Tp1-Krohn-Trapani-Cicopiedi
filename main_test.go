@@ -10,9 +10,8 @@ import (
 	sqlc "tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
 
-// =========================================================================
 // FUNCIONES AUXILIARES COMPARTIDAS POR LOS TESTS
-// =========================================================================
+
 
 // conectarDB abre la conexión a PostgreSQL en Docker y limpia las 4 tablas
 func conectarDB(t *testing.T) *sqlc.Queries {
@@ -87,9 +86,9 @@ func crearSuscripcionPrueba(t *testing.T, queries *sqlc.Queries, idUsuario, idSe
 	return sub
 }
 
-// =========================================================================
+
 // TEST 1: TABLA USUARIO
-// =========================================================================
+
 func TestUsuario_CRUD(t *testing.T) {
 	queries := conectarDB(t)
 	ctx := context.Background()
@@ -157,9 +156,9 @@ func TestUsuario_CRUD(t *testing.T) {
 	})
 }
 
-// =========================================================================
+
 // TEST 2: TABLA SERVICIO
-// =========================================================================
+
 func TestServicio_CRUD(t *testing.T) {
 	queries := conectarDB(t)
 	ctx := context.Background()
@@ -205,9 +204,9 @@ func TestServicio_CRUD(t *testing.T) {
 	})
 }
 
-// =========================================================================
+
 // TEST 3: TABLA SUBSCRIPCIONES
-// =========================================================================
+
 func TestSubscripciones_CRUD(t *testing.T) {
 	queries := conectarDB(t)
 	ctx := context.Background()
@@ -261,9 +260,9 @@ func TestSubscripciones_CRUD(t *testing.T) {
 	})
 }
 
-// =========================================================================
+
 // TEST 4: TABLA PAGO
-// =========================================================================
+
 func TestPago_CRUD(t *testing.T) {
 	queries := conectarDB(t)
 	ctx := context.Background()
