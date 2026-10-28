@@ -71,18 +71,7 @@ Funcionamiento de `app.js`:
   repetido o al intentar borrar un servicio con suscripciones) se muestran en
   un aviso arriba de la página.
 
-## Ejercicios del TP4
 
-Los ejercicios de práctica están en [`ejercicios/`](ejercicios/) y se abren
-directamente en el navegador (no necesitan el servidor):
-
-| Carpeta | Tema |
-|---|---|
-| `ejercicio1/` | Manipulación del DOM (`getElementById`, `querySelector`, `innerHTML`). |
-| `ejercicio2/` | Creación y eliminación de elementos (`createElement`, `appendChild`, `remove`). |
-| `ejercicio3/` | Box Model (`width`, `padding`, `border`, `margin`, `:nth-child`). |
-| `ejercicio4/` | Flexbox: `flex-direction`, `justify-content`, `align-items` y `gap`, con una variante por valor. |
-| `ejercicio5/` | CSS Grid con `grid-column`/`grid-row` y la versión opcional con `grid-template-areas`. |
 
 # Documentación de persistencia
 
