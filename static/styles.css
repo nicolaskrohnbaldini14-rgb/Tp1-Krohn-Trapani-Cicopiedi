@@ -48,6 +48,18 @@ article > header {
   margin-bottom: 1.5rem;
 }
 
+/* en pantallas angostas la marca queda arriba y los links debajo */
+@media (max-width: 768px) {
+  .barra {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .barra ul {
+    flex-wrap: wrap;
+  }
+}
+
 .barra a,
 .saludo {
   color: var(--crema);
@@ -174,6 +186,10 @@ h1 {
 
 .opciones h3 {
   color: var(--azul-medio);
+}
+
+.sin-corte {
+  white-space: nowrap;
 }
 
 .titulo-con-accion {

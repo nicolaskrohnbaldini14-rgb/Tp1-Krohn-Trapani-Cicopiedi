@@ -15,7 +15,7 @@ templ contenidoCuenta(sesion *Sesion, suscripciones []sqlc.ListSubscripcionesUsu
 	<section class="bienvenida">
 		<h1>Hola, { sesion.Nombre }</h1>
 		<p class="lema">
-			Tenés { textoActivas(cantidadActivas(suscripciones)) } · { totalActivo(suscripciones) } por mes
+			Tenés { textoActivas(cantidadActivas(suscripciones)) } · <span class="sin-corte">{ totalActivo(suscripciones) } por mes</span>
 		</p>
 	</section>
 	<div class="grid opciones">
