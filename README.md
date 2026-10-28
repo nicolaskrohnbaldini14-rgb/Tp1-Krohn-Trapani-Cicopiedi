@@ -48,7 +48,7 @@ comparten origen y no hace falta configurar CORS.
 |---|---|
 | [`static/index.html`](static/index.html) | Estructura: título, un formulario y un contenedor (`<ul id="lista-...">`) por cada entidad. |
 | [`static/app.js`](static/app.js) | Comunicación con la API usando `fetch`. |
-| [`static/styles.css`](static/styles.css) | Estilos. El tablero usa **CSS Grid** y los formularios y listas **Flexbox**. |
+| [`static/styles.css`](static/styles.css) | Estilos. El tablero usa **CSS Grid** y los formularios y listas **Flexbox**. Mantiene la paleta de la primera entrega: azul acero `#567c8d`, azul petróleo `#002f44`/`#004b6e` y crema `#ece6d4`. |
 
 Funcionamiento de `app.js`:
 
