@@ -9,8 +9,12 @@
 <body data-pagina="inicio">
   <header class="barra">
     <a href="/" class="marca">Suscripciones+</a>
-    <!-- app.js reemplaza estos links según la sesión -->
+    <!-- app.js completa el menú de servicios y cambia los links según la sesión -->
     <nav id="navegacion">
+      <div class="desplegable" id="desplegable-servicios">
+        <button type="button" class="desplegable-boton" aria-haspopup="true">Servicios ▾</button>
+        <ul class="desplegable-menu" id="menu-servicios"></ul>
+      </div>
       <a href="login.html">Iniciar sesión</a>
       <a href="registro.html" class="boton">Registrarse</a>
     </nav>
@@ -22,20 +26,10 @@
     <section class="portada">
       <h1>Suscripciones+</h1>
       <p class="lema">¡Todos tus servicios, en el mismo lugar!</p>
-      <p class="descripcion">
-        Registrá tus suscripciones y gastos recurrentes —streaming, gimnasio,
-        software, seguros y todo lo que pagás mes a mes— y visualizá cuánto
-        gastás en total.
-      </p>
       <div class="acciones" id="acciones-inicio">
         <a href="login.html" class="boton">Iniciar sesión</a>
         <a href="registro.html" class="boton boton-claro">Registrarse</a>
       </div>
-    </section>
-
-    <section>
-      <h2>Servicios disponibles</h2>
-      <ul id="catalogo" class="catalogo"></ul>
     </section>
   </main>
 

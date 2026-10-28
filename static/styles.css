@@ -19,6 +19,9 @@
 
 body {
   margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family: "Gill Sans", "Gill Sans MT", Calibri, "Trebuchet MS", sans-serif;
   background: var(--fondo);
   color: var(--texto);
@@ -36,6 +39,7 @@ a {
 /* ---------- Barra de navegación (Flexbox) ---------- */
 
 .barra {
+  width: 100%;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -116,6 +120,8 @@ a {
 }
 
 .contenido {
+  flex: 1;
+  width: 100%;
   max-width: 1100px;
   margin: 24px auto;
   padding: 0 16px;
@@ -127,11 +133,16 @@ a {
   color: var(--primario-oscuro);
 }
 
-/* ---------- Portada (home) ---------- */
+/* ---------- Portada (home): centrada en la pantalla ---------- */
+
+body[data-pagina="inicio"] .contenido {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .portada {
   text-align: center;
-  padding: 24px 0 8px;
 }
 
 .portada h1 {
@@ -148,12 +159,8 @@ a {
   color: var(--primario);
 }
 
-.descripcion {
-  max-width: 46rem;
-  margin: 24px auto 32px;
-  font-size: 1.25rem;
-  line-height: 1.8;
-  color: var(--crema);
+.portada .acciones {
+  margin-top: 32px;
 }
 
 .acciones {
@@ -171,27 +178,63 @@ section > h2 {
   color: var(--crema);
 }
 
-/* catálogo público con CSS Grid */
-.catalogo {
+/* ---------- Menú desplegable de servicios (barra superior) ---------- */
+
+.desplegable {
+  position: relative;
+}
+
+.desplegable-boton {
+  padding: 6px 0;
+  background: transparent;
+  color: var(--crema);
+  font-family: inherit;
+}
+
+.desplegable-boton:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+/* se muestra al pasar el cursor (o al enfocarlo con el teclado o un toque) */
+.desplegable-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  min-width: 16rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px;
   list-style: none;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
-  gap: 16px;
-}
-
-.catalogo li {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 12px;
   background: var(--tarjeta);
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 47, 68, 0.35);
 }
 
-.catalogo li.vacio {
-  grid-column: 1 / -1;
+.desplegable:hover .desplegable-menu,
+.desplegable:focus-within .desplegable-menu {
+  display: block;
+}
+
+.desplegable-menu li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--texto);
+}
+
+.desplegable-menu li:hover {
+  background: var(--campo);
+}
+
+.desplegable-menu li.vacio {
+  display: block;
 }
 
 /* ---------- Login y registro ---------- */
@@ -396,6 +439,7 @@ button:hover {
 }
 
 .mensaje {
+  width: 100%;
   max-width: 1100px;
   margin: 16px auto 0;
   padding: 12px 16px;
@@ -434,6 +478,7 @@ button:hover {
   }
 
   .mensaje {
+    width: auto;
     margin: 16px 16px 0;
   }
 }

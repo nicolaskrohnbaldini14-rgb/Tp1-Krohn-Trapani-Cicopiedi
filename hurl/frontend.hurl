@@ -1,6 +1,6 @@
 # Páginas del frontend (TP4): las sirve el mismo servidor Go.
 
-# ---------- Home: links a login y registro, catálogo de solo lectura ----------
+# ---------- Home: links a login y registro y menú de servicios en la barra ----------
 GET {{host}}/
 HTTP 200
 [Asserts]
@@ -9,7 +9,8 @@ xpath "string(//body/@data-pagina)" == "inicio"
 xpath "count(//a[@href='login.html'])" >= 1
 xpath "count(//a[@href='registro.html'])" >= 1
 xpath "count(//a[@href='registro.html?tipo=empresa'])" == 1
-xpath "count(//ul[@id='catalogo'])" == 1
+xpath "count(//nav//ul[@id='menu-servicios'])" == 1
+xpath "count(//ul[@id='catalogo'])" == 0
 # en el inicio no está el formulario de servicios
 xpath "count(//form[@id='form-servicio'])" == 0
 xpath "string(//script/@src)" == "app.js"

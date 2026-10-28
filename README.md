@@ -53,13 +53,19 @@ La aplicación está separada en páginas según quién la usa:
 
 | Página | Quién | Contenido |
 |---|---|---|
-| `index.html` (`/`) | Todos | Presentación, catálogo de servicios **de solo lectura** y links a **Iniciar sesión** y **Registrarse**. |
+| `index.html` (`/`) | Todos | Portada centrada con el título, el lema y los botones **Iniciar sesión** y **Registrarse**. |
 | `login.html` | Todos | Inicio de sesión. |
 | `registro.html` | Todos | Registro de consumidores. Con `?tipo=empresa` registra empresas (link al pie de página). |
 | `cuenta.html` | Consumidores | *"Hola, {nombre}"*, resumen del gasto y dos opciones: ver las suscripciones o crear una nueva. |
 | `suscripciones.html` | Consumidores | Lista de sus suscripciones con el gasto mensual activo y botón para eliminar. |
 | `nueva-suscripcion.html` | Consumidores | Formulario de alta de suscripción. |
 | `empresa.html` | Empresas | Alta y baja de servicios del catálogo. |
+
+Todas las páginas tienen en la barra superior el menú **Servicios ▾**: al
+pasar el cursor (o tocarlo en el celular) se despliega el catálogo de
+servicios disponibles para suscribirse, de solo lectura. Lo completa `app.js`
+con `GET /servicios`; los servicios los crean y borran solo las empresas
+desde su panel.
 
 Todas las páginas comparten [`static/app.js`](static/app.js) y
 [`static/styles.css`](static/styles.css). Cada una se identifica con
@@ -68,8 +74,8 @@ Todas las páginas comparten [`static/app.js`](static/app.js) y
 Funcionamiento de `app.js`:
 
 - **Sesión:** al cargar cualquier página pide `GET /sesion`. Según la
-  respuesta arma la barra de navegación (*Iniciar sesión / Registrarse* o
-  *Hola, {nombre} / Cerrar sesión*). Las páginas privadas redirigen al login
+  respuesta arma la barra de navegación (*Servicios ▾ / Iniciar sesión /
+  Registrarse* o *Servicios ▾ / … / Hola, {nombre} / Cerrar sesión*). Las páginas privadas redirigen al login
   si no hay sesión, o a la sección que corresponde si la cuenta es de otro tipo.
 - **Carga de datos:** cada página hace su `fetch` al cargar
   (`GET /servicios`, `GET /suscripciones/usuario/{id}`) y genera
@@ -90,7 +96,7 @@ Funcionamiento de `app.js`:
   permisos los controla la API: ocultar un botón en la página no alcanza.
 
 Los estilos usan **Flexbox** (barra, formularios y listas) y **CSS Grid**
-(catálogo, opciones de la cuenta y panel de empresas), con la paleta de la
+(opciones de la cuenta y panel de empresas), con la paleta de la
 primera entrega: azul acero `#567c8d`, azul petróleo `#002f44`/`#004b6e` y
 crema `#ece6d4`.
 
@@ -256,7 +262,7 @@ de las acciones protegidas.
 
 | Archivo | Qué prueba |
 |---|---|
-| `frontend.hurl` | Que se sirvan las páginas, que el inicio tenga los links a login y registro y que no tenga el alta de servicios. |
+| `frontend.hurl` | Que se sirvan las páginas, que el inicio tenga los links a login y registro y el menú de servicios en la barra, y que no tenga el alta de servicios. |
 | `usuario.hurl` | Registro, login correcto e incorrecto, `GET /sesion`, CRUD de la propia cuenta, `403` sobre cuentas ajenas y cierre de sesión. |
 | `servicio.hurl` | CRUD de servicios como empresa, `401` sin sesión y `403` para consumidores. |
 | `suscripcion.hurl` | CRUD de suscripciones como consumidor, `403` para empresas, `404` sobre suscripciones ajenas y `401` sin sesión. |

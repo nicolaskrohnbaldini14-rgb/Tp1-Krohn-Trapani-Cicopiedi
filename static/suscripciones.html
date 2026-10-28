@@ -9,8 +9,12 @@
 <body data-pagina="suscripciones">
   <header class="barra">
     <a href="/" class="marca">Suscripciones+</a>
-    <!-- app.js reemplaza estos links según la sesión -->
+    <!-- app.js completa el menú de servicios y cambia los links según la sesión -->
     <nav id="navegacion">
+      <div class="desplegable" id="desplegable-servicios">
+        <button type="button" class="desplegable-boton" aria-haspopup="true">Servicios ▾</button>
+        <ul class="desplegable-menu" id="menu-servicios"></ul>
+      </div>
       <a href="login.html">Iniciar sesión</a>
       <a href="registro.html" class="boton">Registrarse</a>
     </nav>

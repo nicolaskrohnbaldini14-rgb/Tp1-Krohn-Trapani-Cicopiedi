@@ -142,10 +142,13 @@ function enlace(href, texto, clase) {
   return a;
 }
 
-// pintarBarra muestra los links que corresponden según haya sesión o no
+// pintarBarra muestra los links que corresponden según haya sesión o no.
+// El menú desplegable de servicios queda siempre primero.
 function pintarBarra(sesion) {
   const nav = document.getElementById("navegacion");
   if (!sesion) return; // quedan los links de "Iniciar sesión" y "Registrarse"
+
+  const menuServicios = document.getElementById("desplegable-servicios");
 
   const items = [];
   if (sesion.tipo === "consumidor") {
@@ -168,10 +171,37 @@ function pintarBarra(sesion) {
     location.href = "/";
   });
 
-  nav.replaceChildren(...items, saludo, salir);
+  nav.replaceChildren(menuServicios, ...items, saludo, salir);
 
   // con sesión iniciada ya no hace falta invitar a registrar una empresa
   document.getElementById("aviso-empresas")?.remove();
+}
+
+// cargarMenuServicios completa el desplegable de la barra con el catálogo
+// (solo lectura: los servicios los crean y borran las empresas en su panel)
+async function cargarMenuServicios() {
+  const menu = document.getElementById("menu-servicios");
+  try {
+    const servicios = await pedir("/servicios");
+    if (servicios.length === 0) {
+      mostrarVacio(menu, "Todavía no hay servicios publicados.");
+      return;
+    }
+    menu.replaceChildren(
+      ...servicios.map((s) => {
+        const li = document.createElement("li");
+        const nombre = document.createElement("span");
+        nombre.textContent = s.nombre;
+        const categoria = document.createElement("span");
+        categoria.className = "etiqueta";
+        categoria.textContent = s.categoria;
+        li.append(nombre, categoria);
+        return li;
+      })
+    );
+  } catch {
+    mostrarVacio(menu, "No se pudieron cargar los servicios.");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -184,26 +214,6 @@ async function paginaInicio(sesion) {
       .getElementById("acciones-inicio")
       .replaceChildren(enlace(destino(sesion), "Ir a mi cuenta", "boton"));
   }
-
-  // catálogo de solo lectura: acá no se crean ni se borran servicios
-  const catalogo = document.getElementById("catalogo");
-  const servicios = await pedir("/servicios");
-  if (servicios.length === 0) {
-    mostrarVacio(catalogo, "Todavía no hay servicios publicados.");
-    return;
-  }
-  catalogo.replaceChildren(
-    ...servicios.map((s) => {
-      const li = document.createElement("li");
-      const nombre = document.createElement("strong");
-      nombre.textContent = s.nombre;
-      const categoria = document.createElement("span");
-      categoria.className = "etiqueta";
-      categoria.textContent = s.categoria;
-      li.append(nombre, categoria);
-      return li;
-    })
-  );
 }
 
 async function paginaLogin(sesion) {
@@ -417,6 +427,7 @@ const paginas = {
 document.addEventListener("DOMContentLoaded", async () => {
   const sesion = await obtenerSesion();
   pintarBarra(sesion);
+  cargarMenuServicios();
   try {
     await paginas[document.body.dataset.pagina]?.(sesion);
   } catch (error) {
