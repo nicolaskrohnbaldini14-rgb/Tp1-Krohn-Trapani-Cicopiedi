@@ -1,11 +1,35 @@
-APP_NAME := Tp4-Krohn-Trapani-Cicopiedi
+APP_NAME := Tp5-Krohn-Trapani-Cicopiedi
 HOST := http://localhost:8080
 HURL_FILES := hurl/usuario.hurl hurl/servicio.hurl hurl/suscripcion.hurl hurl/pago.hurl
 
-.PHONY: all run run-app clean-docker docker-up generate build test test-api docker-down clean
+# Si sqlc no está instalado se compila y ejecuta con "go run"
+SQLC := $(shell command -v sqlc 2>/dev/null || echo "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1")
+# templ está declarado como herramienta en go.mod (directiva "tool")
+TEMPL := go tool templ
+
+.PHONY: all run-app run test test-api generate build clean-docker docker-up docker-down clean
 
 
 all: test-api
+
+# ---------------------------------------------------------------------------
+# Generación de código y compilación
+# ---------------------------------------------------------------------------
+
+generate:
+	@echo "==> Generando código con sqlc..."
+	@$(SQLC) generate
+	@echo "==> Generando vistas con templ..."
+	@$(TEMPL) generate
+
+build: generate
+	@echo "==> Compilando ejecutable..."
+	@mkdir -p tmp
+	@go build -o ./tmp/$(APP_NAME) .
+
+# ---------------------------------------------------------------------------
+# Base de datos (Docker)
+# ---------------------------------------------------------------------------
 
 clean-docker:
 	@echo "==> Limpiando contenedores y volúmenes previos..."
@@ -16,48 +40,45 @@ docker-up: clean-docker
 	@docker compose up -d --wait
 	@echo "==> La base de datos está lista (healthcheck OK)"
 
-generate: docker-up
-	@echo "==> Generando código con sqlc..."
-	@sqlc generate
+docker-down:
+	@echo "==> Borrando contenedores y volúmenes..."
+	@docker compose down -v
 
-build: generate
-	@echo "==> Compilando ejecutable..."
-	@mkdir -p tmp
-	@go build -o ./tmp/$(APP_NAME) .
+# ---------------------------------------------------------------------------
+# Ejecución
+# ---------------------------------------------------------------------------
 
+# run-app: tareas previas (sqlc, templ, compilación, limpieza y arranque de la
+# base esperando el healthcheck), ejecución de la app y, al cortar con Ctrl+C,
+# tareas posteriores (borrado de contenedores y volúmenes).
+run-app: build docker-up
+	@echo "==> Aplicación disponible en $(HOST) (Ctrl+C para detener)"
+	@trap '$(MAKE) --no-print-directory docker-down' EXIT; \
+	trap 'exit 0' INT TERM; \
+	./tmp/$(APP_NAME)
+
+run: run-app
+
+# ---------------------------------------------------------------------------
+# Pruebas
+# ---------------------------------------------------------------------------
 
 test:
-	@echo "==> Ejecutando pruebas unitarias CRUD..."
+	@echo "==> Ejecutando pruebas de Go (sqlc + vistas)..."
 	@go test -v -count=1 ./...
 
-
-test-api: build
+# test-api: corre los tests de Go y luego prueba la aplicación con Hurl
+test-api: build docker-up
 	@$(MAKE) --no-print-directory test || { $(MAKE) --no-print-directory docker-down; exit 1; }
 	@echo "==> Levantando la aplicación..."
 	@./tmp/$(APP_NAME) & APP_PID=$$! ; \
-	curl -s -o /dev/null --retry 10 --retry-connrefused --retry-delay 1 $(HOST)/usuarios ; \
-	echo "==> Probando los endpoints con Hurl..." ; \
+	curl -s -o /dev/null --retry 10 --retry-connrefused --retry-delay 1 $(HOST)/ ; \
+	echo "==> Probando la aplicación con Hurl..." ; \
 	hurl --test --jobs 1 --variable host=$(HOST) $(HURL_FILES) ; \
 	STATUS=$$? ; \
 	kill $$APP_PID ; \
 	$(MAKE) --no-print-directory docker-down ; \
 	exit $$STATUS
 
-
-docker-down:
-	@echo "==> Borrando contenedores y volúmenes..."
-	@docker compose down -v
-
-run: test-api
-	@echo "==> ¡Proceso finalizado con éxito!"
-
 clean:
 	@rm -rf tmp
-
-# run-app: levanta la base, genera el código, compila y deja la app corriendo
-# en http://localhost:8080. Al cortar con Ctrl+C borra contenedores y volúmenes.
-run-app: build
-	@echo "==> Aplicación disponible en $(HOST) (Ctrl+C para detener)"
-	@trap '$(MAKE) --no-print-directory docker-down' EXIT; \
-	trap 'exit 0' INT TERM; \
-	./tmp/$(APP_NAME)

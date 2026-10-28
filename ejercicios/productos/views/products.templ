@@ -1,0 +1,31 @@
+package views
+
+import (
+	"fmt"
+
+	"productos/db/sqlc"
+)
+
+// ProductList muestra los productos en una tabla o un mensaje si no hay ninguno.
+templ ProductList(products []db.Product) {
+	if len(products) == 0 {
+		<p><em>No hay productos cargados todavía.</em></p>
+	} else {
+		<table class="striped">
+			<thead>
+				<tr>
+					<th>Nombre</th>
+					<th>Precio</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, p := range products {
+					<tr>
+						<td>{ p.Name }</td>
+						<td>{ fmt.Sprintf("$ %.2f", p.Price) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}

@@ -1,0 +1,36 @@
+package views
+
+// Layout define la estructura base de todas las páginas y renderiza
+// el componente recibido como contenido principal.
+templ Layout(titulo string, contenido templ.Component) {
+	<!DOCTYPE html>
+	<html lang="es" data-theme="light">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ titulo }</title>
+			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css"/>
+			<link rel="stylesheet" href="/static/styles.css"/>
+		</head>
+		<body>
+			<header class="container encabezado">
+				<h1>Suscripciones+</h1>
+				<p class="lema">¡Todos tus servicios, en el mismo lugar!</p>
+				<nav>
+					<ul>
+						<li><a href="#usuarios">Usuarios</a></li>
+						<li><a href="#servicios">Servicios</a></li>
+						<li><a href="#suscripciones">Suscripciones</a></li>
+						<li><a href="#pagos">Pagos</a></li>
+					</ul>
+				</nav>
+			</header>
+			<main class="container">
+				@contenido
+			</main>
+			<footer class="container pie">
+				<small>Krohn · Trapani · Cicopiedi</small>
+			</footer>
+		</body>
+	</html>
+}

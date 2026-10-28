@@ -1,0 +1,71 @@
+package views
+
+import "tp2-krohn-trapani-cicopiedi/db/sqlc"
+
+// DatosInicio agrupa todo lo que necesita la página principal
+type DatosInicio struct {
+	Usuarios      []sqlc.Usuario
+	Servicios     []sqlc.Servicio
+	Suscripciones []sqlc.ListSuscripcionesRow
+	Pagos         []sqlc.ListTodosLosPagosRow
+	// Error se muestra arriba de la página cuando falla un alta o un borrado
+	Error string
+}
+
+templ IndexPage(titulo string, datos DatosInicio) {
+	@Layout(titulo, contenidoInicio(datos))
+}
+
+templ contenidoInicio(datos DatosInicio) {
+	if datos.Error != "" {
+		<article class="aviso-error" role="alert">{ datos.Error }</article>
+	}
+	<section id="usuarios">
+		<h2>Usuarios</h2>
+		<div class="grid panel">
+			<article>
+				<header>Nuevo usuario</header>
+				@UsuarioForm()
+			</article>
+			<article>
+				<header>Usuarios registrados</header>
+				@UsuarioList(datos.Usuarios)
+			</article>
+		</div>
+	</section>
+	<section id="servicios">
+		<h2>Servicios</h2>
+		<div class="grid panel">
+			<article>
+				<header>Nuevo servicio</header>
+				@ServicioForm()
+			</article>
+			<article>
+				<header>Catálogo de servicios</header>
+				@ServicioList(datos.Servicios)
+			</article>
+		</div>
+	</section>
+	<section id="suscripciones">
+		<h2>Suscripciones</h2>
+		<article>
+			<header>Nueva suscripción</header>
+			@SuscripcionForm(datos.Usuarios, datos.Servicios)
+		</article>
+		<article>
+			<header>Suscripciones registradas</header>
+			@SuscripcionList(datos.Suscripciones)
+		</article>
+	</section>
+	<section id="pagos">
+		<h2>Pagos</h2>
+		<article>
+			<header>Registrar pago</header>
+			@PagoForm(datos.Suscripciones)
+		</article>
+		<article>
+			<header>Historial de pagos</header>
+			@PagoList(datos.Pagos)
+		</article>
+	</section>
+}

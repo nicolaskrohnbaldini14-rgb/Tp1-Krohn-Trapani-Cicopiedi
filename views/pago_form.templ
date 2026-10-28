@@ -1,0 +1,35 @@
+package views
+
+import (
+	"strconv"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+)
+
+templ PagoForm(suscripciones []sqlc.ListSuscripcionesRow) {
+	if len(suscripciones) == 0 {
+		@MensajeVacio("Para registrar un pago primero creá una suscripción.")
+	} else {
+		<form method="post" action="/pagos">
+			<div class="grid">
+				<label>
+					Suscripción
+					<select name="id_suscripcion" required>
+						for _, s := range suscripciones {
+							<option value={ strconv.Itoa(int(s.IDSuscripcion)) }>{ s.UsuarioNombre } · { s.ServicioNombre }</option>
+						}
+					</select>
+				</label>
+				<label>
+					Monto
+					<input type="number" name="monto" min="0.01" step="0.01" required/>
+				</label>
+				<label>
+					Fecha de pago
+					<input type="date" name="fecha_pago" required/>
+				</label>
+			</div>
+			<button type="submit">Registrar pago</button>
+		</form>
+	}
+}

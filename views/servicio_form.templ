@@ -1,0 +1,21 @@
+package views
+
+import "tp2-krohn-trapani-cicopiedi/logic"
+
+templ ServicioForm() {
+	<form method="post" action="/servicios">
+		<label>
+			Nombre
+			<input type="text" name="nombre" required/>
+		</label>
+		<label>
+			Categoría
+			<select name="categoria" required>
+				for _, categoria := range logic.Categorias {
+					<option value={ categoria }>{ categoria }</option>
+				}
+			</select>
+		</label>
+		<button type="submit">Crear servicio</button>
+	</form>
+}

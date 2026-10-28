@@ -1,0 +1,3 @@
+db/sqlc/
+*_templ.go
+products.db

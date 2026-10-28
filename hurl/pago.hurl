@@ -1,229 +1,123 @@
+# Pruebas del registro de pagos con formularios HTML.
 
-# 1. Crear Usuario previo
+# ---------- Setup: usuario, servicio y suscripción ----------
 POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "Usuario Pagador",
-  "email": "pago_{{newUuid}}@test.com",
-  "password": "secreto123"
-}
-HTTP 201
-[Captures]
-usuario_id: jsonpath "$.id_usuario"
+[FormParams]
+nombre: Usuario Pagos
+email: usuario.pagos@example.com
+password: secreto123
+HTTP 303
 
-# 2. Crear Servicio previo
 POST {{host}}/servicios
-Content-Type: application/json
-{
-  "nombre": "ServicioPago-{{newUuid}}",
-  "categoria": "Streaming"
-}
-HTTP 201
-[Captures]
-servicio_id: jsonpath "$.id_servicio"
+[FormParams]
+nombre: Gimnasio Pagos
+categoria: Gimnasio
+HTTP 303
 
-# 3. Crear Suscripción previa (Vencimiento: 2026-12-31)
+GET {{host}}/
+HTTP 200
+[Captures]
+usuario_id: xpath "string(//select[@name='id_usuario']/option[normalize-space(.)='Usuario Pagos']/@value)"
+servicio_id: xpath "string(//select[@name='id_servicio']/option[starts-with(normalize-space(.), 'Gimnasio Pagos')]/@value)"
+
 POST {{host}}/suscripciones
-Content-Type: application/json
-{
-  "id_usuario": {{usuario_id}},
-  "id_servicio": {{servicio_id}},
-  "monto": "2500.00",
-  "fecha_inicio": "2026-01-01T00:00:00Z",
-  "fecha_vencimiento": "2026-12-31T00:00:00Z",
-  "usuario_cuenta": "pagos@test.com",
-  "password_cuenta": "clave123",
-  "estado": "Activa"
-}
-HTTP 201
+[FormParams]
+id_usuario: {{usuario_id}}
+id_servicio: {{servicio_id}}
+monto: 32000
+fecha_inicio: 2026-01-01
+fecha_vencimiento: 2026-06-30
+usuario_cuenta: socio-123
+password_cuenta: clave
+estado: Activa
+HTTP 303
+
+GET {{host}}/
+HTTP 200
 [Captures]
-suscripcion_id: jsonpath "$.id_suscripcion"
-
-
-### ============================================================================
-### CREACIÓN DE PAGO (POST /pagos)
-### ============================================================================
-
-### ---------- 1. Crear pago exitoso (201) ----------
-POST {{host}}/pagos
-Content-Type: application/json
-{
-  "id_suscripcion": {{suscripcion_id}},
-  "monto": "2500.00",
-  "fecha_pago": "2026-06-15T00:00:00Z"
-}
-HTTP 201
-[Captures]
-pago_id: jsonpath "$.id_pago"
+sub_id: xpath "string(//select[@name='id_suscripcion']/option[normalize-space(.)='Usuario Pagos · Gimnasio Pagos']/@value)"
 [Asserts]
-header "Content-Type" == "application/json"
-jsonpath "$.id_pago" > 0
-jsonpath "$.id_suscripcion" == {{suscripcion_id}}
-jsonpath "$.monto" == "2500.00"
-jsonpath "$.fecha_pago" startsWith "2026-06-15"
-jsonpath "$.created_at" exists
+xpath "count(//form[@action='/pagos'])" == 1
 
-### ---------- 2. Suscripción inexistente (404) ----------
+
+# ---------- 1. Registrar pago (303) ----------
 POST {{host}}/pagos
-Content-Type: application/json
-{
-  "id_suscripcion": 999999,
-  "monto": "1000.00",
-  "fecha_pago": "2026-06-15T00:00:00Z"
-}
+[FormParams]
+id_suscripcion: {{sub_id}}
+monto: 32000
+fecha_pago: 2026-03-10
+HTTP 303
+[Asserts]
+header "Location" == "/"
+
+
+# ---------- 2. El pago aparece en el historial ----------
+GET {{host}}/
+HTTP 200
+[Captures]
+eliminar_pago: xpath "string(//section[@id='pagos']//tr[td[normalize-space(.)='Usuario Pagos']]//form/@action)"
+[Asserts]
+xpath "normalize-space(//section[@id='pagos']//tr[td[normalize-space(.)='Usuario Pagos']]/td[1])" == "10/03/2026"
+xpath "normalize-space(//section[@id='pagos']//tr[td[normalize-space(.)='Usuario Pagos']]/td[3])" == "Gimnasio Pagos"
+xpath "normalize-space(//section[@id='pagos']//tr[td[normalize-space(.)='Usuario Pagos']]/td[4])" == "$ 32.000,00"
+
+
+# ---------- 3. Fecha de pago posterior al vencimiento (400) ----------
+POST {{host}}/pagos
+[FormParams]
+id_suscripcion: {{sub_id}}
+monto: 32000
+fecha_pago: 2026-07-15
+HTTP 400
+[Asserts]
+xpath "normalize-space(//article[@role='alert'])" contains "posterior"
+
+
+# ---------- 4. Monto inválido (400) ----------
+POST {{host}}/pagos
+[FormParams]
+id_suscripcion: {{sub_id}}
+monto: -10
+fecha_pago: 2026-03-10
+HTTP 400
+[Asserts]
+xpath "normalize-space(//article[@role='alert'])" contains "mayor a cero"
+
+
+# ---------- 5. Fecha faltante (400) ----------
+POST {{host}}/pagos
+[FormParams]
+id_suscripcion: {{sub_id}}
+monto: 100
+fecha_pago:
+HTTP 400
+[Asserts]
+xpath "normalize-space(//article[@role='alert'])" contains "obligatoria"
+
+
+# ---------- 6. Suscripción inexistente (404) ----------
+POST {{host}}/pagos
+[FormParams]
+id_suscripcion: 999999
+monto: 100
+fecha_pago: 2026-03-10
 HTTP 404
 [Asserts]
-body contains "no existe"
-
-### ---------- 3. ID de suscripción inválido (400) ----------
-POST {{host}}/pagos
-Content-Type: application/json
-{
-  "id_suscripcion": 0,
-  "monto": "1000.00",
-  "fecha_pago": "2026-06-15T00:00:00Z"
-}
-HTTP 400
-[Asserts]
-body contains "válido"
-
-### ---------- 4. Monto cero o negativo (400) ----------
-POST {{host}}/pagos
-Content-Type: application/json
-{
-  "id_suscripcion": {{suscripcion_id}},
-  "monto": "0",
-  "fecha_pago": "2026-06-15T00:00:00Z"
-}
-HTTP 400
-[Asserts]
-body contains "mayor a cero"
-
-### ---------- 5. Monto no numérico (400) ----------
-POST {{host}}/pagos
-Content-Type: application/json
-{
-  "id_suscripcion": {{suscripcion_id}},
-  "monto": "abc",
-  "fecha_pago": "2026-06-15T00:00:00Z"
-}
-HTTP 400
-[Asserts]
-body contains "número válido"
-
-### ---------- 6. Fecha de pago posterior al vencimiento de la suscripción (400) ----------
-# La suscripción vence el 2026-12-31; enviamos fecha de pago en 2027
-POST {{host}}/pagos
-Content-Type: application/json
-{
-  "id_suscripcion": {{suscripcion_id}},
-  "monto": "2500.00",
-  "fecha_pago": "2027-01-15T00:00:00Z"
-}
-HTTP 400
-[Asserts]
-body contains "posterior"
-
-### ---------- 7. Sin fecha de pago (400) ----------
-POST {{host}}/pagos
-Content-Type: application/json
-{
-  "id_suscripcion": {{suscripcion_id}},
-  "monto": "2500.00"
-}
-HTTP 400
-[Asserts]
-body contains "obligatoria"
-
-### ---------- 8. JSON inválido (400) ----------
-POST {{host}}/pagos
-Content-Type: application/json
-```
-{ esto no es json }
-```
-HTTP 400
+xpath "normalize-space(//article[@role='alert'])" contains "no existe"
 
 
-### ============================================================================
-### LECTURA DE PAGOS (GET)
-### ============================================================================
+# ---------- 7. Eliminar pago (303) ----------
+POST {{host}}{{eliminar_pago}}
+HTTP 303
 
-### ---------- 9. Obtener pago por ID (200) ----------
-GET {{host}}/pagos/{{pago_id}}
+
+# ---------- 8. Ya no aparece en el historial ----------
+GET {{host}}/
 HTTP 200
 [Asserts]
-jsonpath "$.id_pago" == {{pago_id}}
-jsonpath "$.id_suscripcion" == {{suscripcion_id}}
-jsonpath "$.monto" == "2500.00"
+xpath "count(//section[@id='pagos']//td[normalize-space(.)='Usuario Pagos'])" == 0
 
-### ---------- 10. Obtener pago inexistente (404) ----------
-GET {{host}}/pagos/999999
+
+# ---------- 9. Eliminar pago inexistente (404) ----------
+POST {{host}}/pagos/999999/eliminar
 HTTP 404
-[Asserts]
-body contains "no encontrado"
-
-### ---------- 11. ID de pago no numérico (400) ----------
-GET {{host}}/pagos/abc
-HTTP 400
-
-### ---------- 12. Listar historial de pagos por suscripción (200) ----------
-GET {{host}}/pagos/suscripcion/{{suscripcion_id}}
-HTTP 200
-[Asserts]
-jsonpath "$" count >= 1
-jsonpath "$[0].id_suscripcion" == {{suscripcion_id}}
-
-### ---------- 13. Listar historial de suscripción inexistente (404) ----------
-GET {{host}}/pagos/suscripcion/999999
-HTTP 404
-[Asserts]
-body contains "no existe"
-
-
-### ============================================================================
-### REGLA DE INMUTABILIDAD DE REGISTROS DE PAGO (PUT / PATCH)
-### ============================================================================
-
-### ---------- 14. Intento de modificación / PUT no permitido (405) ----------
-PUT {{host}}/pagos/{{pago_id}}
-Content-Type: application/json
-{
-  "monto": "3000.00"
-}
-HTTP 405
-[Asserts]
-body contains "inmutables"
-
-### ---------- 15. Intento de modificación / PATCH no permitido (405) ----------
-PATCH {{host}}/pagos/{{pago_id}}
-HTTP 405
-
-
-### ============================================================================
-### ELIMINACIÓN Y BORRADO EN CASCADA (DELETE)
-### ============================================================================
-
-### ---------- 16. Eliminar pago (204) y verificar su ausencia (404) ----------
-DELETE {{host}}/pagos/{{pago_id}}
-HTTP 204
-
-GET {{host}}/pagos/{{pago_id}}
-HTTP 404
-[Asserts]
-body contains "no encontrado"
-
-# Re-intentar eliminar ya borrado
-DELETE {{host}}/pagos/{{pago_id}}
-HTTP 404
-
-
-### ============================================================================
-### LIMPIEZA
-### ============================================================================
-
-# Borrar usuario elimina en cascada sus suscripciones y pagos asociados (ON DELETE CASCADE)
-DELETE {{host}}/usuarios/{{usuario_id}}
-HTTP 204
-
-DELETE {{host}}/servicios/{{servicio_id}}
-HTTP 204

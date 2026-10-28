@@ -3,9 +3,7 @@ package logic
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 
@@ -82,6 +80,11 @@ func (s *ServicioPago) ObtenerPorID(ctx context.Context, id int32) (sqlc.Pago, e
 	return pago, nil
 }
 
+// ListarTodos recupera todos los pagos registrados, del más reciente al más antiguo
+func (s *ServicioPago) ListarTodos(ctx context.Context) ([]sqlc.ListTodosLosPagosRow, error) {
+	return s.consultas.ListTodosLosPagos(ctx)
+}
+
 // ListarPorSuscripcion recupera el historial de pagos de una suscripción
 func (s *ServicioPago) ListarPorSuscripcion(ctx context.Context, idSuscripcion int32) ([]sqlc.Pago, error) {
 	// Verificar previamente que la suscripción exista
@@ -105,128 +108,4 @@ func (s *ServicioPago) Eliminar(ctx context.Context, id int32) error {
 	}
 
 	return s.consultas.DeletePago(ctx, id)
-}
-
-type ManejadorPago struct {
-	servicio *ServicioPago
-}
-
-func NuevoManejadorPago(s *ServicioPago) *ManejadorPago {
-	return &ManejadorPago{servicio: s}
-}
-
-// ManejarPagos atiende solicitudes POST en /pagos
-func (h *ManejadorPago) ManejarPagos(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		h.crear(w, r)
-	default:
-		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
-	}
-}
-
-// ManejarPagoPorID atiende GET y DELETE en /pagos/{id}
-func (h *ManejadorPago) ManejarPagoPorID(w http.ResponseWriter, r *http.Request) {
-	id, ok := h.extraerID(w, r)
-	if !ok {
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		h.obtenerPorID(w, r, id)
-	case http.MethodDelete:
-		h.eliminar(w, r, id)
-	default:
-		http.Error(w, "Método HTTP no permitido (los registros de pago son inmutables)", http.StatusMethodNotAllowed)
-	}
-}
-
-// ManejarPagosPorSuscripcion atiende GET en /pagos/suscripcion/{id_suscripcion}
-func (h *ManejadorPago) ManejarPagosPorSuscripcion(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
-		return
-	}
-
-	idSuscripcion, ok := h.extraerID(w, r)
-	if !ok {
-		return
-	}
-
-	h.obtenerPorSuscripcion(w, r, idSuscripcion)
-}
-
-func (h *ManejadorPago) crear(w http.ResponseWriter, r *http.Request) {
-	var entrada sqlc.CreatePagoParams
-	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
-		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
-		return
-	}
-
-	creado, err := h.servicio.Crear(r.Context(), entrada)
-	if err != nil {
-		h.responderError(w, err)
-		return
-	}
-	h.responderJSON(w, http.StatusCreated, creado)
-}
-
-func (h *ManejadorPago) obtenerPorID(w http.ResponseWriter, r *http.Request, id int32) {
-	pago, err := h.servicio.ObtenerPorID(r.Context(), id)
-	if err != nil {
-		h.responderError(w, err)
-		return
-	}
-	h.responderJSON(w, http.StatusOK, pago)
-}
-
-func (h *ManejadorPago) obtenerPorSuscripcion(w http.ResponseWriter, r *http.Request, idSuscripcion int32) {
-	lista, err := h.servicio.ListarPorSuscripcion(r.Context(), idSuscripcion)
-	if err != nil {
-		h.responderError(w, err)
-		return
-	}
-	h.responderJSON(w, http.StatusOK, lista)
-}
-
-func (h *ManejadorPago) eliminar(w http.ResponseWriter, r *http.Request, id int32) {
-	if err := h.servicio.Eliminar(r.Context(), id); err != nil {
-		h.responderError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *ManejadorPago) extraerID(w http.ResponseWriter, r *http.Request) (int32, bool) {
-	partes := strings.Split(r.URL.Path, "/")
-	if len(partes) < 3 || partes[len(partes)-1] == "" {
-		http.Error(w, "ID no especificado", http.StatusBadRequest)
-		return 0, false
-	}
-
-	idNum, err := strconv.Atoi(partes[len(partes)-1])
-	if err != nil {
-		http.Error(w, "El ID debe ser un valor numérico", http.StatusBadRequest)
-		return 0, false
-	}
-	return int32(idNum), true
-}
-
-func (h *ManejadorPago) responderError(w http.ResponseWriter, err error) {
-	msg := err.Error()
-	switch {
-	case strings.Contains(msg, "no encontrado") || strings.Contains(msg, "no existe"):
-		http.Error(w, msg, http.StatusNotFound)
-	case strings.Contains(msg, "obligatoria") || strings.Contains(msg, "mayor a cero") || strings.Contains(msg, "posterior") || strings.Contains(msg, "válido"):
-		http.Error(w, msg, http.StatusBadRequest)
-	default:
-		http.Error(w, "Error interno del servidor", http.StatusInternalServerError)
-	}
-}
-
-func (h *ManejadorPago) responderJSON(w http.ResponseWriter, estado int, datos any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(estado)
-	_ = json.NewEncoder(w).Encode(datos)
 }

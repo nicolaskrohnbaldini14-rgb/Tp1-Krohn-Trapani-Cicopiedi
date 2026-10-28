@@ -1,0 +1,29 @@
+package views
+
+import "productos/db/sqlc"
+
+// IndexPage usa el Layout y muestra el título, la lista y el formulario de alta.
+templ IndexPage(titulo string, products []db.Product) {
+	@Layout(titulo, indexContent(titulo, products))
+}
+
+templ indexContent(titulo string, products []db.Product) {
+	<h1>{ titulo }</h1>
+	@ProductList(products)
+	<article>
+		<header>Nuevo producto</header>
+		<form method="post" action="/products">
+			<div class="grid">
+				<label>
+					Nombre
+					<input type="text" name="name" required/>
+				</label>
+				<label>
+					Precio
+					<input type="number" name="price" min="0" step="0.01" required/>
+				</label>
+			</div>
+			<button type="submit">Agregar producto</button>
+		</form>
+	</article>
+}

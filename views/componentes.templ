@@ -1,0 +1,52 @@
+package views
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// BotonEliminar es un formulario POST porque los formularios HTML solo
+// admiten GET y POST (no DELETE), así que el borrado no necesita JavaScript.
+templ BotonEliminar(accion string) {
+	<form method="post" action={ templ.URL(accion) } class="form-eliminar">
+		<button type="submit" class="outline secondary">Eliminar</button>
+	</form>
+}
+
+templ MensajeVacio(texto string) {
+	<p class="vacio">{ texto }</p>
+}
+
+// formatearMonto convierte "2500.00" en "$ 2.500,00"
+func formatearMonto(monto string) string {
+	valor, err := strconv.ParseFloat(monto, 64)
+	if err != nil {
+		return "$ " + monto
+	}
+	return "$ " + formatearNumero(valor)
+}
+
+func formatearNumero(valor float64) string {
+	partes := strings.Split(fmt.Sprintf("%.2f", valor), ".")
+	entero, decimales := partes[0], partes[1]
+
+	signo := ""
+	if strings.HasPrefix(entero, "-") {
+		signo, entero = "-", entero[1:]
+	}
+
+	var miles []string
+	for len(entero) > 3 {
+		miles = append([]string{entero[len(entero)-3:]}, miles...)
+		entero = entero[:len(entero)-3]
+	}
+	miles = append([]string{entero}, miles...)
+
+	return signo + strings.Join(miles, ".") + "," + decimales
+}
+
+func formatearFecha(fecha time.Time) string {
+	return fecha.Format("02/01/2006")
+}

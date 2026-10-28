@@ -1,0 +1,64 @@
+package views
+
+import (
+	"fmt"
+	"strconv"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+)
+
+templ SuscripcionList(suscripciones []sqlc.ListSuscripcionesRow) {
+	if len(suscripciones) == 0 {
+		@MensajeVacio("Todavía no hay suscripciones registradas.")
+	} else {
+		<p class="total">Gasto mensual activo: <strong>{ totalActivo(suscripciones) }</strong></p>
+		<div class="overflow-auto">
+			<table class="striped">
+				<thead>
+					<tr>
+						<th>Usuario</th>
+						<th>Servicio</th>
+						<th>Monto</th>
+						<th>Vigencia</th>
+						<th>Cuenta</th>
+						<th>Estado</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, s := range suscripciones {
+						<tr>
+							<td>{ s.UsuarioNombre }</td>
+							<td>
+								{ s.ServicioNombre }
+								<br/>
+								<small class="etiqueta">{ s.ServicioCategoria }</small>
+							</td>
+							<td>{ formatearMonto(s.Monto) }</td>
+							<td>{ formatearFecha(s.FechaInicio) } al { formatearFecha(s.FechaVencimiento) }</td>
+							<td>{ s.UsuarioCuenta }</td>
+							<td><span class={ "estado", "estado-" + s.Estado }>{ s.Estado }</span></td>
+							<td>
+								@BotonEliminar(fmt.Sprintf("/suscripciones/%d/eliminar", s.IDSuscripcion))
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+// totalActivo suma los montos de las suscripciones en estado Activa
+func totalActivo(suscripciones []sqlc.ListSuscripcionesRow) string {
+	total := 0.0
+	for _, s := range suscripciones {
+		if s.Estado != "Activa" {
+			continue
+		}
+		if monto, err := strconv.ParseFloat(s.Monto, 64); err == nil {
+			total += monto
+		}
+	}
+	return "$ " + formatearNumero(total)
+}

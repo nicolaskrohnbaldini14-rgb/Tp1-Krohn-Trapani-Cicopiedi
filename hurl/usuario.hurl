@@ -1,189 +1,116 @@
-# ---------- 1. Crear usuario (201) ----------
-POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "Usuario Test",
-  "email": "user_{{newUuid}}@test.com",
-  "password": "secreto123"
-}
-HTTP 201
-[Captures]  
-usuario_id: jsonpath "$.id_usuario"
-usuario_email: jsonpath "$.email"
-[Asserts]
-header "Content-Type" == "application/json"
-jsonpath "$.id_usuario" > 0
-jsonpath "$.nombre" == "Usuario Test"
-jsonpath "$.password" == ""
-jsonpath "$.created_at" exists
+# Pruebas de la página y del ABM de usuarios con formularios HTML.
+# Las altas y bajas exitosas responden 303 See Other hacia "/" (patrón PRG).
 
-
-# ---------- 2. Crear con email duplicado (409) ----------
-POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "Otro Nombre",
-  "email": "{{usuario_email}}",
-  "password": "secreto123"
-}
-HTTP 409
-[Asserts]
-body contains "ya está registrado"
-
-
-# ---------- 3. Crear con campos vacios (400) ----------
-POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "",
-  "email": "",
-  "password": ""
-}
-HTTP 400
-[Asserts]
-body contains "obligatorios"
-
-
-# ---------- 4. Crear con email invalido (400) ----------
-POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "Mail Roto",
-  "email": "esto-no-es-un-mail",
-  "password": "secreto123"
-}
-HTTP 400
-[Asserts]
-body contains "no es válido"
-
-
-# ---------- 5. Crear con JSON invalido (400) ----------
-POST {{host}}/usuarios
-Content-Type: application/json
-```
-{ esto no es json}
-```
-HTTP 400
-[Asserts]
-body contains "JSON"
-
-
-# ---------- 6. Obtener por ID (200) ----------
-GET {{host}}/usuarios/{{usuario_id}}
+# ---------- 1. Página principal (200) ----------
+GET {{host}}/
 HTTP 200
 [Asserts]
-jsonpath "$.id_usuario" == {{usuario_id}}
-jsonpath "$.email" == "{{usuario_email}}"
-jsonpath "$.password" == ""
+header "Content-Type" contains "text/html"
+xpath "normalize-space(//h1)" == "Suscripciones+"
+xpath "string(//link[contains(@href, 'pico')]/@href)" contains "pico.min.css"
+xpath "count(//form[@action='/usuarios'][@method='post'])" == 1
+xpath "count(//section[@id='usuarios']//input[@name='nombre'])" == 1
+xpath "count(//section[@id='usuarios']//input[@name='email'])" == 1
+xpath "count(//section[@id='usuarios']//input[@name='password'])" == 1
 
 
-# ---------- 7. Obtener inexistente (404) ----------
-GET {{host}}/usuarios/999999
-HTTP 404
-[Asserts]
-body contains "no encontrado"
-
-
-# ---------- 8. ID no numerico (400) ----------
-GET {{host}}/usuarios/abc
-HTTP 400
-[Asserts]
-body contains "numérico"
-
-
-# ---------- 9. Listar (200) ----------
-GET {{host}}/usuarios
-HTTP 200
-[Asserts]
-jsonpath "$" count >= 1
-
-
-# ---------- 10. Actualizar (200) ----------
-PUT {{host}}/usuarios/{{usuario_id}}
-Content-Type: application/json
-{
-  "nombre": "Usuario Editado",
-  "email": "{{usuario_email}}",
-  "password": "nuevaclave456"
-}
-HTTP 200
-[Asserts]
-jsonpath "$.id_usuario" == {{usuario_id}}
-jsonpath "$.nombre" == "Usuario Editado"
-jsonpath "$.password" == ""
-
-
-# ---------- 11. Verificar que el cambio persistio ----------
-GET {{host}}/usuarios/{{usuario_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.nombre" == "Usuario Editado"
-
-
-# ---------- 12. Actualizar inexistente (404) ----------
-PUT {{host}}/usuarios/999999
-Content-Type: application/json
-{
-  "nombre": "Fantasma",
-  "email": "fantasma_{{newUuid}}@test.com",
-  "password": "x12345"
-}
-HTTP 404
-
-
-# ---------- 13. Actualizar con email de otro usuario (409) ----------
-# Primero creo un segundo usuario
+# ---------- 2. Crear usuario: redirige a / (303) ----------
 POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "Segundo Usuario",
-  "email": "segundo_{{newUuid}}@test.com",
-  "password": "secreto123"
-}
-HTTP 201
+[FormParams]
+nombre: Ana Hurl
+email: ana.hurl@example.com
+password: secreto123
+HTTP 303
+[Asserts]
+header "Location" == "/"
+
+
+# ---------- 3. El usuario aparece en la lista (y no se muestra la contraseña) ----------
+GET {{host}}/
+HTTP 200
 [Captures]
-otro_id: jsonpath "$.id_usuario"
-otro_email: jsonpath "$.email"
+eliminar_ana: xpath "string(//section[@id='usuarios']//tr[td[normalize-space(.)='Ana Hurl']]//form/@action)"
+[Asserts]
+xpath "count(//section[@id='usuarios']//td[normalize-space(.)='ana.hurl@example.com'])" == 1
+body not contains "secreto123"
 
-PUT {{host}}/usuarios/{{usuario_id}}
-Content-Type: application/json
-{
-  "nombre": "Usuario Editado",
-  "email": "{{otro_email}}",
-  "password": "nuevaclave456"
-}
+
+# ---------- 4. Siguiendo la redirección se llega a la página actualizada ----------
+POST {{host}}/usuarios
+[Options]
+location: true
+[FormParams]
+nombre: Beto Hurl
+email: beto.hurl@example.com
+password: secreto123
+HTTP 200
+[Asserts]
+url == "{{host}}/"
+xpath "count(//section[@id='usuarios']//td[normalize-space(.)='Beto Hurl'])" == 1
+
+
+# ---------- 5. Email repetido (409) ----------
+POST {{host}}/usuarios
+[FormParams]
+nombre: Otra Persona
+email: ana.hurl@example.com
+password: secreto123
 HTTP 409
 [Asserts]
-body contains "en uso"
+header "Content-Type" contains "text/html"
+xpath "normalize-space(//article[@role='alert'])" contains "ya está registrado"
 
 
-# ---------- 14. Actualizar con datos invalidos (400) ----------
-PUT {{host}}/usuarios/{{usuario_id}}
-Content-Type: application/json
-{
-  "nombre": "",
-  "email": "{{usuario_email}}",
-  "password": "nuevaclave456"
-}
+# ---------- 6. Email con formato inválido (400) ----------
+POST {{host}}/usuarios
+[FormParams]
+nombre: Sin Arroba
+email: correo-invalido
+password: secreto123
 HTTP 400
+[Asserts]
+xpath "normalize-space(//article[@role='alert'])" contains "no es válido"
 
 
-# ---------- 15. Metodo no permitido (405) ----------
-PATCH {{host}}/usuarios/{{usuario_id}}
+# ---------- 7. Campos obligatorios vacíos (400) ----------
+POST {{host}}/usuarios
+[FormParams]
+nombre:
+email: vacio@example.com
+password: secreto123
+HTTP 400
+[Asserts]
+xpath "normalize-space(//article[@role='alert'])" contains "obligatorios"
+
+
+# ---------- 8. Eliminar usuario (303) ----------
+POST {{host}}{{eliminar_ana}}
+HTTP 303
+[Asserts]
+header "Location" == "/"
+
+
+# ---------- 9. El usuario eliminado ya no aparece ----------
+GET {{host}}/
+HTTP 200
+[Asserts]
+xpath "count(//section[@id='usuarios']//td[normalize-space(.)='Ana Hurl'])" == 0
+
+
+# ---------- 10. Eliminar usuario inexistente (404) ----------
+POST {{host}}/usuarios/999999/eliminar
+HTTP 404
+[Asserts]
+xpath "normalize-space(//article[@role='alert'])" contains "no encontrado"
+
+
+# ---------- 11. ID no numérico (400) ----------
+POST {{host}}/usuarios/abc/eliminar
+HTTP 400
+[Asserts]
+xpath "normalize-space(//article[@role='alert'])" contains "numérico"
+
+
+# ---------- 12. Método no permitido: ya no hay API JSON (405) ----------
+GET {{host}}/usuarios
 HTTP 405
-
-
-# ---------- 16. Eliminar (204) y verificar (404) ----------
-DELETE {{host}}/usuarios/{{usuario_id}}
-HTTP 204
-
-GET {{host}}/usuarios/{{usuario_id}}
-HTTP 404
-
-DELETE {{host}}/usuarios/{{usuario_id}}
-HTTP 404
-
-
-# ---------- Limpieza ----------
-DELETE {{host}}/usuarios/{{otro_id}}
-HTTP 204

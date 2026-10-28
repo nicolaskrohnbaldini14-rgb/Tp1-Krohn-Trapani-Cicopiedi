@@ -3,9 +3,7 @@ package logic
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 
@@ -13,12 +11,13 @@ import (
 )
 
 // Estados permitidos según las reglas de negocio
+var Estados = []string{"Activa", "Pausada", "Cancelada"}
+
 var estadosValidos = map[string]bool{
 	"Activa":    true,
 	"Pausada":   true,
 	"Cancelada": true,
 }
-
 
 // pregunta si esta bien esto o lo cambiamos en el schema
 // parsearMonto convierte el monto (string en sqlc) a número y valida que sea > 0
@@ -134,6 +133,11 @@ func (s *ServicioSuscripcion) ObtenerPorID(ctx context.Context, id int32) (sqlc.
 	return ocultarPasswordCuenta(sub), nil
 }
 
+// Listar trae todas las suscripciones con el nombre del usuario y del servicio
+func (s *ServicioSuscripcion) Listar(ctx context.Context) ([]sqlc.ListSuscripcionesRow, error) {
+	return s.consultas.ListSuscripciones(ctx)
+}
+
 // ListarPorUsuario trae todas las suscripciones registradas para un usuario
 func (s *ServicioSuscripcion) ListarPorUsuario(ctx context.Context, idUsuario int32) ([]sqlc.ListSubscripcionesUsuarioRow, error) {
 	return s.consultas.ListSubscripcionesUsuario(ctx, idUsuario)
@@ -217,149 +221,4 @@ func (s *ServicioSuscripcion) Eliminar(ctx context.Context, id int32) error {
 	}
 
 	return s.consultas.DeleteSubscripcion(ctx, id)
-}
-
-type ManejadorSuscripcion struct {
-	servicio *ServicioSuscripcion
-}
-
-func NuevoManejadorSuscripcion(s *ServicioSuscripcion) *ManejadorSuscripcion {
-	return &ManejadorSuscripcion{servicio: s}
-}
-
-// ManejarSuscripciones atiende POST a /suscripciones
-func (h *ManejadorSuscripcion) ManejarSuscripciones(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		h.crear(w, r)
-	default:
-		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
-	}
-}
-
-// ManejarSuscripcionPorID atiende GET, PUT y DELETE en /suscripciones/{id}
-func (h *ManejadorSuscripcion) ManejarSuscripcionPorID(w http.ResponseWriter, r *http.Request) {
-	id, ok := h.extraerID(w, r)
-	if !ok {
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		h.obtenerPorID(w, r, id)
-	case http.MethodPut:
-		h.actualizar(w, r, id)
-	case http.MethodDelete:
-		h.eliminar(w, r, id)
-	default:
-		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
-	}
-}
-
-// ManejarSuscripcionesPorUsuario atiende GET en /suscripciones/usuario/{id_usuario}
-func (h *ManejadorSuscripcion) ManejarSuscripcionesPorUsuario(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
-		return
-	}
-
-	idUsuario, ok := h.extraerID(w, r)
-	if !ok {
-		return
-	}
-
-	h.obtenerPorUsuario(w, r, idUsuario)
-}
-
-func (h *ManejadorSuscripcion) crear(w http.ResponseWriter, r *http.Request) {
-	var entrada sqlc.CreateSubscripcionParams
-	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
-		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
-		return
-	}
-
-	creada, err := h.servicio.Crear(r.Context(), entrada)
-	if err != nil {
-		h.responderError(w, err)
-		return
-	}
-	h.responderJSON(w, http.StatusCreated, creada)
-}
-
-func (h *ManejadorSuscripcion) obtenerPorID(w http.ResponseWriter, r *http.Request, id int32) {
-	sub, err := h.servicio.ObtenerPorID(r.Context(), id)
-	if err != nil {
-		h.responderError(w, err)
-		return
-	}
-	h.responderJSON(w, http.StatusOK, sub)
-}
-
-func (h *ManejadorSuscripcion) actualizar(w http.ResponseWriter, r *http.Request, id int32) {
-	var entrada sqlc.UpdateSubscripcionParams
-	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
-		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
-		return
-	}
-
-	actualizada, err := h.servicio.Actualizar(r.Context(), id, entrada)
-	if err != nil {
-		h.responderError(w, err)
-		return
-	}
-	h.responderJSON(w, http.StatusOK, actualizada)
-}
-
-func (h *ManejadorSuscripcion) eliminar(w http.ResponseWriter, r *http.Request, id int32) {
-	if err := h.servicio.Eliminar(r.Context(), id); err != nil {
-		h.responderError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *ManejadorSuscripcion) obtenerPorUsuario(w http.ResponseWriter, r *http.Request, idUsuario int32) {
-	lista, err := h.servicio.ListarPorUsuario(r.Context(), idUsuario)
-	if err != nil {
-		h.responderError(w, err)
-		return
-	}
-	h.responderJSON(w, http.StatusOK, lista)
-}
-
-func (h *ManejadorSuscripcion) extraerID(w http.ResponseWriter, r *http.Request) (int32, bool) {
-	partes := strings.Split(r.URL.Path, "/")
-	if len(partes) < 3 || partes[len(partes)-1] == "" {
-		http.Error(w, "ID no especificado", http.StatusBadRequest)
-		return 0, false
-	}
-
-	idNum, err := strconv.Atoi(partes[len(partes)-1])
-	if err != nil {
-		http.Error(w, "El ID debe ser un valor numérico", http.StatusBadRequest)
-		return 0, false
-	}
-
-	return int32(idNum), true
-}
-
-func (h *ManejadorSuscripcion) responderError(w http.ResponseWriter, err error) {
-	msg := err.Error()
-
-	switch {
-	case strings.Contains(msg, "no encontrada") || strings.Contains(msg, "no existe"):
-		http.Error(w, msg, http.StatusNotFound)
-	case strings.Contains(msg, "obligatoria") || strings.Contains(msg, "mayor a cero") || strings.Contains(msg, "anterior") || strings.Contains(msg, "válido"):
-		http.Error(w, msg, http.StatusBadRequest)
-	case strings.Contains(msg, "activa"):
-		http.Error(w, msg, http.StatusConflict)
-	default:
-		http.Error(w, "Error interno del servidor", http.StatusInternalServerError)
-	}
-}
-
-func (h *ManejadorSuscripcion) responderJSON(w http.ResponseWriter, estado int, datos any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(estado)
-	_ = json.NewEncoder(w).Encode(datos)
 }

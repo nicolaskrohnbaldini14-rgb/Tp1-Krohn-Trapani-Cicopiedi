@@ -1,0 +1,19 @@
+package views
+
+templ UsuarioForm() {
+	<form method="post" action="/usuarios">
+		<label>
+			Nombre
+			<input type="text" name="nombre" required/>
+		</label>
+		<label>
+			Email
+			<input type="email" name="email" required/>
+		</label>
+		<label>
+			Contraseña
+			<input type="password" name="password" required/>
+		</label>
+		<button type="submit">Crear usuario</button>
+	</form>
+}

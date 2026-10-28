@@ -1,0 +1,36 @@
+package views
+
+import (
+	"fmt"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+)
+
+templ ServicioList(servicios []sqlc.Servicio) {
+	if len(servicios) == 0 {
+		@MensajeVacio("Todavía no hay servicios cargados.")
+	} else {
+		<div class="overflow-auto">
+			<table class="striped">
+				<thead>
+					<tr>
+						<th>Nombre</th>
+						<th>Categoría</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, s := range servicios {
+						<tr>
+							<td>{ s.Nombre }</td>
+							<td><span class="etiqueta">{ s.Categoria }</span></td>
+							<td>
+								@BotonEliminar(fmt.Sprintf("/servicios/%d/eliminar", s.IDServicio))
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}

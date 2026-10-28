@@ -1,0 +1,40 @@
+package views
+
+import (
+	"fmt"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+)
+
+templ PagoList(pagos []sqlc.ListTodosLosPagosRow) {
+	if len(pagos) == 0 {
+		@MensajeVacio("Todavía no hay pagos registrados.")
+	} else {
+		<div class="overflow-auto">
+			<table class="striped">
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Usuario</th>
+						<th>Servicio</th>
+						<th>Monto</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, p := range pagos {
+						<tr>
+							<td>{ formatearFecha(p.FechaPago) }</td>
+							<td>{ p.UsuarioNombre }</td>
+							<td>{ p.ServicioNombre }</td>
+							<td>{ formatearMonto(p.Monto) }</td>
+							<td>
+								@BotonEliminar(fmt.Sprintf("/pagos/%d/eliminar", p.IDPago))
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
