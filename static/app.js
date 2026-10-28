@@ -1,12 +1,8 @@
-// La página la sirve el mismo servidor Go que expone la API,
-// por eso las rutas son relativas (mismo origen, sin problemas de CORS).
+// Todas las páginas comparten este archivo. Cada una indica cuál es con
+// <body data-pagina="...">, y al cargar se ejecuta la función correspondiente.
+// Las páginas las sirve el mismo servidor Go que expone la API, por eso las
+// rutas son relativas (mismo origen: sin CORS y con la cookie de sesión).
 
-const listaUsuarios = document.getElementById("lista-usuarios");
-const listaServicios = document.getElementById("lista-servicios");
-const listaSuscripciones = document.getElementById("lista-suscripciones");
-const filtroUsuario = document.getElementById("filtro-usuario");
-const selectServicios = document.getElementById("select-servicios");
-const totalMensual = document.getElementById("total-mensual");
 const cajaMensaje = document.getElementById("mensaje");
 
 // ---------------------------------------------------------------------------
@@ -18,7 +14,9 @@ async function pedir(url, opciones = {}) {
   const respuesta = await fetch(url, opciones);
   if (!respuesta.ok) {
     const texto = (await respuesta.text()).trim();
-    throw new Error(texto || `Error ${respuesta.status}`);
+    const error = new Error(texto || `Error ${respuesta.status}`);
+    error.status = respuesta.status;
+    throw error;
   }
   if (respuesta.status === 204) {
     return null;
@@ -40,10 +38,14 @@ function mostrarMensaje(texto, tipo = "ok") {
   cajaMensaje.className = `mensaje ${tipo}`;
   cajaMensaje.hidden = false;
   clearTimeout(temporizadorMensaje);
-  temporizadorMensaje = setTimeout(() => (cajaMensaje.hidden = true), 4000);
+  temporizadorMensaje = setTimeout(() => (cajaMensaje.hidden = true), 5000);
 }
 
-// crearItem arma un <li> con un título, un detalle y el botón de eliminar.
+function mostrarError(error) {
+  mostrarMensaje(error.message, "error");
+}
+
+// crearItem arma un <li> con un título, un detalle y (opcional) el botón de eliminar.
 // Se usa textContent (y no innerHTML) para no inyectar HTML con datos del usuario.
 function crearItem(titulo, detalle, id, etiqueta) {
   const li = document.createElement("li");
@@ -66,14 +68,16 @@ function crearItem(titulo, detalle, id, etiqueta) {
   small.textContent = detalle;
 
   info.append(strong, small);
+  li.append(info);
 
-  const boton = document.createElement("button");
-  boton.type = "button";
-  boton.className = "btn-eliminar";
-  boton.dataset.id = id;
-  boton.textContent = "Eliminar";
-
-  li.append(info, boton);
+  if (id !== undefined) {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "btn-eliminar";
+    boton.dataset.id = id;
+    boton.textContent = "Eliminar";
+    li.append(boton);
+  }
   return li;
 }
 
@@ -84,22 +88,6 @@ function mostrarVacio(contenedor, texto) {
   contenedor.replaceChildren(li);
 }
 
-function llenarSelect(select, opciones, textoVacio) {
-  const valorAnterior = select.value;
-  select.replaceChildren();
-  if (opciones.length === 0) {
-    select.append(new Option(textoVacio, ""));
-    return;
-  }
-  for (const { valor, texto } of opciones) {
-    select.append(new Option(texto, valor));
-  }
-  // si la opción elegida antes sigue existiendo, se mantiene seleccionada
-  if (opciones.some((o) => String(o.valor) === valorAnterior)) {
-    select.value = valorAnterior;
-  }
-}
-
 // formatearFecha pasa "2026-01-01T00:00:00Z" a "01/01/2026" sin corrimientos de zona horaria
 function formatearFecha(fechaISO) {
   const [anio, mes, dia] = fechaISO.slice(0, 10).split("-");
@@ -108,126 +96,193 @@ function formatearFecha(fechaISO) {
 
 const formatoPesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 
-// ---------------------------------------------------------------------------
-// Usuarios
-// ---------------------------------------------------------------------------
-
-async function cargarUsuarios() {
-  const usuarios = await pedir("/usuarios");
-
-  if (usuarios.length === 0) {
-    mostrarVacio(listaUsuarios, "Todavía no hay usuarios.");
-  } else {
-    listaUsuarios.replaceChildren(
-      ...usuarios.map((u) => crearItem(u.nombre, u.email, u.id_usuario))
-    );
-  }
-
-  const opciones = usuarios.map((u) => ({ valor: u.id_usuario, texto: u.nombre }));
-  document.querySelectorAll(".select-usuarios").forEach((select) => {
-    llenarSelect(select, opciones, "Primero creá un usuario");
-  });
+function totalActivo(suscripciones) {
+  return suscripciones
+    .filter((s) => s.estado === "Activa")
+    .reduce((suma, s) => suma + Number(s.monto), 0);
 }
 
-document.getElementById("form-usuario").addEventListener("submit", async (evento) => {
-  evento.preventDefault();
-  const form = evento.target;
-  const datos = Object.fromEntries(new FormData(form));
-
-  try {
-    await enviarJSON("/usuarios", "POST", datos);
-    form.reset();
-    mostrarMensaje("Usuario creado.");
-    await cargarUsuarios();
-    await cargarSuscripciones();
-  } catch (error) {
-    mostrarMensaje(error.message, "error");
-  }
-});
-
-// Delegación de eventos: un solo listener en la lista atiende todos los botones
-listaUsuarios.addEventListener("click", async (evento) => {
-  const boton = evento.target.closest(".btn-eliminar");
-  if (!boton) return;
-
-  try {
-    await pedir(`/usuarios/${boton.dataset.id}`, { method: "DELETE" });
-    mostrarMensaje("Usuario eliminado (junto con sus suscripciones).");
-    await cargarUsuarios();
-    await cargarSuscripciones();
-  } catch (error) {
-    mostrarMensaje(error.message, "error");
-  }
-});
-
 // ---------------------------------------------------------------------------
-// Servicios
+// Sesión
 // ---------------------------------------------------------------------------
 
-async function cargarServicios() {
-  const servicios = await pedir("/servicios");
+// obtenerSesion devuelve el usuario que inició sesión o null
+async function obtenerSesion() {
+  try {
+    return await pedir("/sesion");
+  } catch {
+    return null;
+  }
+}
 
-  if (servicios.length === 0) {
-    mostrarVacio(listaServicios, "Todavía no hay servicios.");
+// destino es la página principal de cada tipo de cuenta
+function destino(usuario) {
+  return usuario.tipo === "empresa" ? "empresa.html" : "cuenta.html";
+}
+
+// exigirTipo redirige al login si no hay sesión, o a su sección si la cuenta
+// es de otro tipo. La API igual rechaza las acciones no permitidas (401/403).
+function exigirTipo(sesion, tipo) {
+  if (!sesion) {
+    location.href = "login.html";
+    return false;
+  }
+  if (sesion.tipo !== tipo) {
+    location.href = destino(sesion);
+    return false;
+  }
+  return true;
+}
+
+function enlace(href, texto, clase) {
+  const a = document.createElement("a");
+  a.href = href;
+  a.textContent = texto;
+  if (clase) a.className = clase;
+  return a;
+}
+
+// pintarBarra muestra los links que corresponden según haya sesión o no
+function pintarBarra(sesion) {
+  const nav = document.getElementById("navegacion");
+  if (!sesion) return; // quedan los links de "Iniciar sesión" y "Registrarse"
+
+  const items = [];
+  if (sesion.tipo === "consumidor") {
+    items.push(enlace("suscripciones.html", "Mis suscripciones"));
+    items.push(enlace("nueva-suscripcion.html", "Nueva suscripción"));
   } else {
-    listaServicios.replaceChildren(
-      ...servicios.map((s) => crearItem(s.nombre, "", s.id_servicio, s.categoria))
-    );
+    items.push(enlace("empresa.html", "Mis servicios"));
   }
 
-  llenarSelect(
-    selectServicios,
-    servicios.map((s) => ({ valor: s.id_servicio, texto: `${s.nombre} (${s.categoria})` })),
-    "Primero creá un servicio"
+  const saludo = document.createElement("span");
+  saludo.className = "saludo";
+  saludo.textContent = `Hola, ${sesion.nombre}`;
+
+  const salir = document.createElement("button");
+  salir.type = "button";
+  salir.className = "boton-salir";
+  salir.textContent = "Cerrar sesión";
+  salir.addEventListener("click", async () => {
+    await pedir("/sesion", { method: "DELETE" });
+    location.href = "/";
+  });
+
+  nav.replaceChildren(...items, saludo, salir);
+
+  // con sesión iniciada ya no hace falta invitar a registrar una empresa
+  document.getElementById("aviso-empresas")?.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Páginas públicas
+// ---------------------------------------------------------------------------
+
+async function paginaInicio(sesion) {
+  if (sesion) {
+    document
+      .getElementById("acciones-inicio")
+      .replaceChildren(enlace(destino(sesion), "Ir a mi cuenta", "boton"));
+  }
+
+  // catálogo de solo lectura: acá no se crean ni se borran servicios
+  const catalogo = document.getElementById("catalogo");
+  const servicios = await pedir("/servicios");
+  if (servicios.length === 0) {
+    mostrarVacio(catalogo, "Todavía no hay servicios publicados.");
+    return;
+  }
+  catalogo.replaceChildren(
+    ...servicios.map((s) => {
+      const li = document.createElement("li");
+      const nombre = document.createElement("strong");
+      nombre.textContent = s.nombre;
+      const categoria = document.createElement("span");
+      categoria.className = "etiqueta";
+      categoria.textContent = s.categoria;
+      li.append(nombre, categoria);
+      return li;
+    })
   );
 }
 
-document.getElementById("form-servicio").addEventListener("submit", async (evento) => {
-  evento.preventDefault();
-  const form = evento.target;
-  const datos = Object.fromEntries(new FormData(form));
-
-  try {
-    await enviarJSON("/servicios", "POST", datos);
-    form.reset();
-    mostrarMensaje("Servicio creado.");
-    await cargarServicios();
-  } catch (error) {
-    mostrarMensaje(error.message, "error");
-  }
-});
-
-listaServicios.addEventListener("click", async (evento) => {
-  const boton = evento.target.closest(".btn-eliminar");
-  if (!boton) return;
-
-  try {
-    await pedir(`/servicios/${boton.dataset.id}`, { method: "DELETE" });
-    mostrarMensaje("Servicio eliminado.");
-    await cargarServicios();
-  } catch (error) {
-    mostrarMensaje(error.message, "error");
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Suscripciones
-// ---------------------------------------------------------------------------
-
-async function cargarSuscripciones() {
-  const idUsuario = filtroUsuario.value;
-  if (!idUsuario) {
-    mostrarVacio(listaSuscripciones, "Elegí un usuario para ver sus suscripciones.");
-    totalMensual.textContent = "";
+async function paginaLogin(sesion) {
+  if (sesion) {
+    location.href = destino(sesion);
     return;
   }
 
-  const suscripciones = await pedir(`/suscripciones/usuario/${idUsuario}`);
+  document.getElementById("form-login").addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const datos = Object.fromEntries(new FormData(evento.target));
+    try {
+      const usuario = await enviarJSON("/sesion", "POST", datos);
+      location.href = destino(usuario);
+    } catch (error) {
+      mostrarError(error);
+    }
+  });
+}
 
-  if (suscripciones.length === 0) {
-    mostrarVacio(listaSuscripciones, "Este usuario no tiene suscripciones.");
-  } else {
-    listaSuscripciones.replaceChildren(
+async function paginaRegistro(sesion) {
+  if (sesion) {
+    location.href = destino(sesion);
+    return;
+  }
+
+  // registro.html?tipo=empresa registra empresas; si no, consumidores
+  const esEmpresa = new URLSearchParams(location.search).get("tipo") === "empresa";
+  if (esEmpresa) {
+    document.title = "Registrar empresa · Suscripciones+";
+    document.getElementById("titulo-registro").textContent = "Registrar empresa";
+    document.getElementById("etiqueta-nombre").textContent = "Nombre de la empresa";
+    document.getElementById("ayuda-empresa").hidden = false;
+  }
+
+  document.getElementById("form-registro").addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const datos = Object.fromEntries(new FormData(evento.target));
+    try {
+      await enviarJSON("/usuarios", "POST", { ...datos, tipo: esEmpresa ? "empresa" : "consumidor" });
+      // después de registrarse queda con la sesión iniciada
+      const usuario = await enviarJSON("/sesion", "POST", { email: datos.email, password: datos.password });
+      location.href = destino(usuario);
+    } catch (error) {
+      mostrarError(error);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Consumidores
+// ---------------------------------------------------------------------------
+
+async function paginaCuenta(sesion) {
+  if (!exigirTipo(sesion, "consumidor")) return;
+
+  document.getElementById("saludo").textContent = `Hola, ${sesion.nombre}`;
+
+  const suscripciones = await pedir(`/suscripciones/usuario/${sesion.id_usuario}`);
+  const activas = suscripciones.filter((s) => s.estado === "Activa").length;
+  const texto = activas === 1 ? "1 suscripción activa" : `${activas} suscripciones activas`;
+  document.getElementById("resumen").textContent =
+    `Tenés ${texto} · ${formatoPesos.format(totalActivo(suscripciones))} por mes`;
+}
+
+async function paginaSuscripciones(sesion) {
+  if (!exigirTipo(sesion, "consumidor")) return;
+
+  const lista = document.getElementById("lista-suscripciones");
+  const total = document.getElementById("total-mensual");
+
+  async function cargar() {
+    const suscripciones = await pedir(`/suscripciones/usuario/${sesion.id_usuario}`);
+    if (suscripciones.length === 0) {
+      mostrarVacio(lista, "Todavía no registraste ninguna suscripción.");
+      total.textContent = "";
+      return;
+    }
+    lista.replaceChildren(
       ...suscripciones.map((s) =>
         crearItem(
           `${s.servicio_nombre} — ${formatoPesos.format(Number(s.monto))}`,
@@ -238,65 +293,132 @@ async function cargarSuscripciones() {
         )
       )
     );
+    total.textContent = `Gasto mensual activo: ${formatoPesos.format(totalActivo(suscripciones))}`;
   }
 
-  const total = suscripciones
-    .filter((s) => s.estado === "Activa")
-    .reduce((suma, s) => suma + Number(s.monto), 0);
-  totalMensual.textContent = `Gasto mensual activo: ${formatoPesos.format(total)}`;
+  // Delegación de eventos: un solo listener en la lista atiende todos los botones
+  lista.addEventListener("click", async (evento) => {
+    const boton = evento.target.closest(".btn-eliminar");
+    if (!boton) return;
+    try {
+      await pedir(`/suscripciones/${boton.dataset.id}`, { method: "DELETE" });
+      mostrarMensaje("Suscripción eliminada.");
+      await cargar();
+    } catch (error) {
+      mostrarError(error);
+    }
+  });
+
+  await cargar();
 }
 
-document.getElementById("form-suscripcion").addEventListener("submit", async (evento) => {
-  evento.preventDefault();
-  const form = evento.target;
-  const datos = Object.fromEntries(new FormData(form));
+async function paginaNuevaSuscripcion(sesion) {
+  if (!exigirTipo(sesion, "consumidor")) return;
 
-  // la API espera ids numéricos y fechas completas en formato RFC 3339
-  const cuerpo = {
-    ...datos,
-    id_usuario: Number(datos.id_usuario),
-    id_servicio: Number(datos.id_servicio),
-    fecha_inicio: `${datos.fecha_inicio}T00:00:00Z`,
-    fecha_vencimiento: `${datos.fecha_vencimiento}T00:00:00Z`,
-  };
+  const select = document.getElementById("select-servicios");
+  const form = document.getElementById("form-suscripcion");
 
-  try {
-    await enviarJSON("/suscripciones", "POST", cuerpo);
-    form.reset();
-    mostrarMensaje("Suscripción creada.");
-    // se muestra la lista del usuario al que se le creó la suscripción
-    filtroUsuario.value = datos.id_usuario;
-    await cargarSuscripciones();
-  } catch (error) {
-    mostrarMensaje(error.message, "error");
+  const servicios = await pedir("/servicios");
+  if (servicios.length === 0) {
+    select.append(new Option("Todavía no hay servicios disponibles", ""));
+    form.querySelector("button").disabled = true;
   }
-});
-
-listaSuscripciones.addEventListener("click", async (evento) => {
-  const boton = evento.target.closest(".btn-eliminar");
-  if (!boton) return;
-
-  try {
-    await pedir(`/suscripciones/${boton.dataset.id}`, { method: "DELETE" });
-    mostrarMensaje("Suscripción eliminada.");
-    await cargarSuscripciones();
-  } catch (error) {
-    mostrarMensaje(error.message, "error");
+  for (const s of servicios) {
+    select.append(new Option(`${s.nombre} (${s.categoria})`, s.id_servicio));
   }
-});
 
-filtroUsuario.addEventListener("change", () => {
-  cargarSuscripciones().catch((error) => mostrarMensaje(error.message, "error"));
-});
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const datos = Object.fromEntries(new FormData(form));
+
+    // el usuario lo toma el servidor de la sesión; la API espera el id
+    // numérico y las fechas completas en formato RFC 3339
+    const cuerpo = {
+      ...datos,
+      id_servicio: Number(datos.id_servicio),
+      fecha_inicio: `${datos.fecha_inicio}T00:00:00Z`,
+      fecha_vencimiento: `${datos.fecha_vencimiento}T00:00:00Z`,
+    };
+
+    try {
+      await enviarJSON("/suscripciones", "POST", cuerpo);
+      location.href = "suscripciones.html";
+    } catch (error) {
+      // si falla se conservan los datos del formulario para corregirlos
+      mostrarError(error);
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
-// Carga inicial
+// Empresas
 // ---------------------------------------------------------------------------
+
+async function paginaEmpresa(sesion) {
+  if (!exigirTipo(sesion, "empresa")) return;
+
+  document.getElementById("saludo").textContent = `Hola, ${sesion.nombre}`;
+  const lista = document.getElementById("lista-servicios");
+
+  async function cargar() {
+    const servicios = await pedir("/servicios");
+    if (servicios.length === 0) {
+      mostrarVacio(lista, "Todavía no hay servicios cargados.");
+      return;
+    }
+    lista.replaceChildren(...servicios.map((s) => crearItem(s.nombre, "", s.id_servicio, s.categoria)));
+  }
+
+  document.getElementById("form-servicio").addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const form = evento.target;
+    const datos = Object.fromEntries(new FormData(form));
+    try {
+      await enviarJSON("/servicios", "POST", datos);
+      form.reset();
+      mostrarMensaje("Servicio creado.");
+      // después de crear se vuelve a pedir la lista completa
+      await cargar();
+    } catch (error) {
+      mostrarError(error);
+    }
+  });
+
+  // Delegación de eventos para los botones creados dinámicamente
+  lista.addEventListener("click", async (evento) => {
+    const boton = evento.target.closest(".btn-eliminar");
+    if (!boton) return;
+    try {
+      await pedir(`/servicios/${boton.dataset.id}`, { method: "DELETE" });
+      mostrarMensaje("Servicio eliminado.");
+      await cargar();
+    } catch (error) {
+      mostrarError(error);
+    }
+  });
+
+  await cargar();
+}
+
+// ---------------------------------------------------------------------------
+// Arranque
+// ---------------------------------------------------------------------------
+
+const paginas = {
+  inicio: paginaInicio,
+  login: paginaLogin,
+  registro: paginaRegistro,
+  cuenta: paginaCuenta,
+  suscripciones: paginaSuscripciones,
+  "nueva-suscripcion": paginaNuevaSuscripcion,
+  empresa: paginaEmpresa,
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const sesion = await obtenerSesion();
+  pintarBarra(sesion);
   try {
-    await Promise.all([cargarUsuarios(), cargarServicios()]);
-    await cargarSuscripciones();
+    await paginas[document.body.dataset.pagina]?.(sesion);
   } catch (error) {
     mostrarMensaje(`No se pudo conectar con la API: ${error.message}`, "error");
   }

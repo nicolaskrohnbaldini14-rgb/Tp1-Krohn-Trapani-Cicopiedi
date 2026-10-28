@@ -1,17 +1,28 @@
-
-# 1. Crear Usuario previo
+# 1. Una empresa publica el servicio
 POST {{host}}/usuarios
 Content-Type: application/json
 {
-  "nombre": "Usuario Pagador",
-  "email": "pago_{{newUuid}}@test.com",
-  "password": "secreto123"
+  "nombre": "Empresa Pagos",
+  "email": "empresapagos_{{newUuid}}@test.com",
+  "password": "secreto123",
+  "tipo": "empresa"
 }
 HTTP 201
 [Captures]
-usuario_id: jsonpath "$.id_usuario"
+empresa_id: jsonpath "$.id_usuario"
+empresa_email: jsonpath "$.email"
+[Asserts]
+jsonpath "$.tipo" == "empresa"
 
-# 2. Crear Servicio previo
+# --- login como empresa ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{empresa_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
 POST {{host}}/servicios
 Content-Type: application/json
 {
@@ -21,6 +32,31 @@ Content-Type: application/json
 HTTP 201
 [Captures]
 servicio_id: jsonpath "$.id_servicio"
+
+# 2. Consumidor con sesión iniciada
+POST {{host}}/usuarios
+Content-Type: application/json
+{
+  "nombre": "Usuario Pagador",
+  "email": "pago_{{newUuid}}@test.com",
+  "password": "secreto123",
+  "tipo": "consumidor"
+}
+HTTP 201
+[Captures]
+usuario_id: jsonpath "$.id_usuario"
+usuario_email: jsonpath "$.email"
+[Asserts]
+jsonpath "$.tipo" == "consumidor"
+
+# --- login como consumidor ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "secreto123"
+}
+HTTP 200
 
 # 3. Crear Suscripción previa (Vencimiento: 2026-12-31)
 POST {{host}}/suscripciones
@@ -181,6 +217,77 @@ body contains "no existe"
 
 
 ### ============================================================================
+### PAGOS AJENOS Y SIN SESIÓN
+### ============================================================================
+
+POST {{host}}/usuarios
+Content-Type: application/json
+{
+  "nombre": "Otro Pagador",
+  "email": "otropago_{{newUuid}}@test.com",
+  "password": "secreto123",
+  "tipo": "consumidor"
+}
+HTTP 201
+[Captures]
+otro_id: jsonpath "$.id_usuario"
+otro_email: jsonpath "$.email"
+[Asserts]
+jsonpath "$.tipo" == "consumidor"
+
+# --- login como otro consumidor ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{otro_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
+GET {{host}}/pagos/{{pago_id}}
+HTTP 404
+
+GET {{host}}/pagos/suscripcion/{{suscripcion_id}}
+HTTP 404
+
+DELETE {{host}}/pagos/{{pago_id}}
+HTTP 404
+
+POST {{host}}/pagos
+Content-Type: application/json
+{
+  "id_suscripcion": {{suscripcion_id}},
+  "monto": "100.00",
+  "fecha_pago": "2026-06-15T00:00:00Z"
+}
+HTTP 404
+
+DELETE {{host}}/sesion
+HTTP 204
+
+GET {{host}}/pagos/{{pago_id}}
+HTTP 401
+
+POST {{host}}/pagos
+Content-Type: application/json
+{
+  "id_suscripcion": {{suscripcion_id}},
+  "monto": "100.00",
+  "fecha_pago": "2026-06-15T00:00:00Z"
+}
+HTTP 401
+
+# --- vuelvo al dueño del pago ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
+
+### ============================================================================
 ### REGLA DE INMUTABILIDAD DE REGISTROS DE PAGO (PUT / PATCH)
 ### ============================================================================
 
@@ -225,5 +332,29 @@ HTTP 404
 DELETE {{host}}/usuarios/{{usuario_id}}
 HTTP 204
 
+# --- el otro consumidor borra su cuenta ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{otro_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
+DELETE {{host}}/usuarios/{{otro_id}}
+HTTP 204
+
+# --- la empresa borra el servicio y su cuenta ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{empresa_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
 DELETE {{host}}/servicios/{{servicio_id}}
+HTTP 204
+
+DELETE {{host}}/usuarios/{{empresa_id}}
 HTTP 204

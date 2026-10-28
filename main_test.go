@@ -46,6 +46,7 @@ func crearUsuarioPrueba(t *testing.T, queries *sqlc.Queries) sqlc.Usuario {
 		Nombre:   "Nicolas",
 		Email:    "nicolas@example.com",
 		Password: "password123",
+		Tipo:     "consumidor",
 	})
 	if err != nil {
 		t.Fatalf("Error al crear usuario: %v", err)
@@ -139,6 +140,7 @@ func TestUsuario_CRUD(t *testing.T) {
 			Nombre:   "Usuario A Borrar",
 			Email:    "aborrar@example.com",
 			Password: "password123",
+			Tipo:     "consumidor",
 		})
 		if err != nil {
 			t.Fatalf("Error al crear usuario auxiliar para borrar: %v", err)
@@ -321,3 +323,4 @@ func TestPago_CRUD(t *testing.T) {
 		_ = queries.DeleteUsuario(ctx, createdUserID)
 	})
 }
+

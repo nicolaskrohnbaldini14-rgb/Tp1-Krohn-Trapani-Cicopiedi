@@ -1,24 +1,77 @@
-# ---------- Setup: usuario y servicio ----------
+# ---------- Setup: una empresa publica el servicio ----------
 POST {{host}}/usuarios
 Content-Type: application/json
 {
-  "nombre": "Usuario Suscripciones",
-  "email": "subs_{{newUuid}}@test.com",
-  "password": "secreto123"
+  "nombre": "Empresa Subs",
+  "email": "empresasubs_{{newUuid}}@test.com",
+  "password": "secreto123",
+  "tipo": "empresa"
 }
 HTTP 201
 [Captures]
-usuario_id: jsonpath "$.id_usuario"
+empresa_id: jsonpath "$.id_usuario"
+empresa_email: jsonpath "$.email"
+[Asserts]
+jsonpath "$.tipo" == "empresa"
+
+# --- login como empresa ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{empresa_email}}",
+  "password": "secreto123"
+}
+HTTP 200
 
 POST {{host}}/servicios
 Content-Type: application/json
 {
- "nombre": "ServicioSubs-{{newUuid}}",
+  "nombre": "ServicioSubs-{{newUuid}}",
   "categoria": "Streaming"
 }
 HTTP 201
 [Captures]
 servicio_id: jsonpath "$.id_servicio"
+
+# una empresa no puede crear suscripciones (403)
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_servicio": {{servicio_id}},
+  "monto": "1500.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "usuario_cuenta": "cuenta@test.com",
+  "password_cuenta": "clavecuenta",
+  "estado": "Activa"
+}
+HTTP 403
+
+
+# ---------- Setup: consumidor con sesión iniciada ----------
+POST {{host}}/usuarios
+Content-Type: application/json
+{
+  "nombre": "Usuario Suscripciones",
+  "email": "subs_{{newUuid}}@test.com",
+  "password": "secreto123",
+  "tipo": "consumidor"
+}
+HTTP 201
+[Captures]
+usuario_id: jsonpath "$.id_usuario"
+usuario_email: jsonpath "$.email"
+[Asserts]
+jsonpath "$.tipo" == "consumidor"
+
+# --- login como consumidor ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "secreto123"
+}
+HTTP 200
 
 
 # ---------- 1. Crear suscripcion (201) ----------
@@ -68,7 +121,7 @@ HTTP 409
 body contains "suscripción activa"
 
 
-# ---------- 3. Usuario inexistente (404) ----------
+# ---------- 3. A nombre de otro usuario (403) ----------
 POST {{host}}/suscripciones
 Content-Type: application/json
 {
@@ -81,9 +134,9 @@ Content-Type: application/json
   "password_cuenta": "clave",
   "estado": "Activa"
 }
-HTTP 404
+HTTP 403
 [Asserts]
-body contains "usuario"
+body contains "a tu nombre"
 
 
 # ---------- 4. Servicio inexistente (404) ----------
@@ -411,6 +464,71 @@ jsonpath "$[0].servicio_categoria" == "Streaming"
 jsonpath "$[0].password_cuenta" not exists
 
 
+# ---------- 24b. Otro consumidor no ve ni toca suscripciones ajenas ----------
+POST {{host}}/usuarios
+Content-Type: application/json
+{
+  "nombre": "Otro Consumidor",
+  "email": "otro_{{newUuid}}@test.com",
+  "password": "secreto123",
+  "tipo": "consumidor"
+}
+HTTP 201
+[Captures]
+otro_id: jsonpath "$.id_usuario"
+otro_email: jsonpath "$.email"
+[Asserts]
+jsonpath "$.tipo" == "consumidor"
+
+# --- login como otro consumidor ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{otro_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
+GET {{host}}/suscripciones/{{sub_id}}
+HTTP 404
+
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "1.00",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Cancelada",
+  "usuario_cuenta": "x@test.com",
+  "password_cuenta": "x"
+}
+HTTP 404
+
+DELETE {{host}}/suscripciones/{{sub_id}}
+HTTP 404
+
+GET {{host}}/suscripciones/usuario/{{usuario_id}}
+HTTP 403
+
+# sin sesión (401)
+DELETE {{host}}/sesion
+HTTP 204
+
+GET {{host}}/suscripciones/{{sub_id}}
+HTTP 401
+
+GET {{host}}/suscripciones/usuario/{{usuario_id}}
+HTTP 401
+
+# --- vuelvo al dueño de las suscripciones ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
+
 # ---------- 25. Metodos no permitidos (405) ----------
 GET {{host}}/suscripciones
 HTTP 405
@@ -438,5 +556,29 @@ HTTP 404
 DELETE {{host}}/usuarios/{{usuario_id}}
 HTTP 204
 
+# --- el otro consumidor borra su cuenta ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{otro_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
+DELETE {{host}}/usuarios/{{otro_id}}
+HTTP 204
+
+# --- la empresa borra el servicio y su cuenta ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{empresa_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
 DELETE {{host}}/servicios/{{servicio_id}}
+HTTP 204
+
+DELETE {{host}}/usuarios/{{empresa_id}}
 HTTP 204

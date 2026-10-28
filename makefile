@@ -1,6 +1,6 @@
 APP_NAME := Tp4-Krohn-Trapani-Cicopiedi
 HOST := http://localhost:8080
-HURL_FILES := hurl/usuario.hurl hurl/servicio.hurl hurl/suscripcion.hurl hurl/pago.hurl
+HURL_FILES := hurl/frontend.hurl hurl/usuario.hurl hurl/servicio.hurl hurl/suscripcion.hurl hurl/pago.hurl
 
 .PHONY: all run run-app clean-docker docker-up generate build test test-api docker-down clean
 

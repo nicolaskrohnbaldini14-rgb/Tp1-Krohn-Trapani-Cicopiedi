@@ -1,3 +1,8 @@
+# ---------- 0. Sin sesión iniciada (401) ----------
+GET {{host}}/sesion
+HTTP 401
+
+
 # ---------- 1. Crear usuario (201) ----------
 POST {{host}}/usuarios
 Content-Type: application/json
@@ -15,6 +20,7 @@ header "Content-Type" == "application/json"
 jsonpath "$.id_usuario" > 0
 jsonpath "$.nombre" == "Usuario Test"
 jsonpath "$.password" == ""
+jsonpath "$.tipo" == "consumidor"
 jsonpath "$.created_at" exists
 
 
@@ -98,6 +104,50 @@ HTTP 200
 jsonpath "$" count >= 1
 
 
+# ---------- Sesión: modificar sin login (401) ----------
+PUT {{host}}/usuarios/{{usuario_id}}
+Content-Type: application/json
+{
+  "nombre": "Sin Sesion",
+  "email": "{{usuario_email}}",
+  "password": "x12345"
+}
+HTTP 401
+
+
+# ---------- Sesión: login con contraseña incorrecta (401) ----------
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "incorrecta"
+}
+HTTP 401
+[Asserts]
+body contains "incorrectos"
+
+
+# ---------- Sesión: login correcto (200) con cookie HttpOnly ----------
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+[Asserts]
+cookie "sesion" exists
+cookie "sesion[HttpOnly]" exists
+jsonpath "$.id_usuario" == {{usuario_id}}
+jsonpath "$.password" == ""
+
+GET {{host}}/sesion
+HTTP 200
+[Asserts]
+jsonpath "$.id_usuario" == {{usuario_id}}
+jsonpath "$.nombre" == "Usuario Test"
+
+
 # ---------- 10. Actualizar (200) ----------
 PUT {{host}}/usuarios/{{usuario_id}}
 Content-Type: application/json
@@ -120,7 +170,7 @@ HTTP 200
 jsonpath "$.nombre" == "Usuario Editado"
 
 
-# ---------- 12. Actualizar inexistente (404) ----------
+# ---------- 12. Actualizar una cuenta ajena (403) ----------
 PUT {{host}}/usuarios/999999
 Content-Type: application/json
 {
@@ -128,7 +178,7 @@ Content-Type: application/json
   "email": "fantasma_{{newUuid}}@test.com",
   "password": "x12345"
 }
-HTTP 404
+HTTP 403
 
 
 # ---------- 13. Actualizar con email de otro usuario (409) ----------
@@ -144,6 +194,21 @@ HTTP 201
 [Captures]
 otro_id: jsonpath "$.id_usuario"
 otro_email: jsonpath "$.email"
+
+# no puedo modificar ni borrar la cuenta de otro usuario (403)
+PUT {{host}}/usuarios/{{otro_id}}
+Content-Type: application/json
+{
+  "nombre": "Hackeado",
+  "email": "{{otro_email}}",
+  "password": "x12345"
+}
+HTTP 403
+[Asserts]
+body contains "propia cuenta"
+
+DELETE {{host}}/usuarios/{{otro_id}}
+HTTP 403
 
 PUT {{host}}/usuarios/{{usuario_id}}
 Content-Type: application/json
@@ -180,10 +245,28 @@ HTTP 204
 GET {{host}}/usuarios/{{usuario_id}}
 HTTP 404
 
+# la sesión era de la cuenta borrada: ya no es válida (401)
 DELETE {{host}}/usuarios/{{usuario_id}}
-HTTP 404
+HTTP 401
 
 
 # ---------- Limpieza ----------
+# --- login como el segundo usuario ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{otro_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
 DELETE {{host}}/usuarios/{{otro_id}}
 HTTP 204
+
+
+# ---------- Cerrar sesión (204) ----------
+DELETE {{host}}/sesion
+HTTP 204
+
+GET {{host}}/sesion
+HTTP 401

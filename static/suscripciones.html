@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mis suscripciones · Suscripciones+</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-pagina="suscripciones">
+  <header class="barra">
+    <a href="/" class="marca">Suscripciones+</a>
+    <!-- app.js reemplaza estos links según la sesión -->
+    <nav id="navegacion">
+      <a href="login.html">Iniciar sesión</a>
+      <a href="registro.html" class="boton">Registrarse</a>
+    </nav>
+  </header>
+
+  <div id="mensaje" class="mensaje" role="status" hidden></div>
+
+  <main class="contenido">
+    <div class="titulo-con-accion">
+      <h1>Mis suscripciones</h1>
+      <a href="nueva-suscripcion.html" class="boton">Nueva suscripción</a>
+    </div>
+
+    <section class="panel">
+      <p id="total-mensual" class="total"></p>
+      <ul id="lista-suscripciones" class="lista"></ul>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <small>Krohn · Trapani · Cicopiedi</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

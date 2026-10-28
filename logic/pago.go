@@ -107,6 +107,28 @@ func (s *ServicioPago) Eliminar(ctx context.Context, id int32) error {
 	return s.consultas.DeletePago(ctx, id)
 }
 
+// SuscripcionPerteneceA indica si la suscripción existe y es del usuario indicado
+func (s *ServicioPago) SuscripcionPerteneceA(ctx context.Context, idSuscripcion, idUsuario int32) (bool, error) {
+	sub, err := s.consultas.GetSubscripcion(ctx, idSuscripcion)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return sub.IDUsuario == idUsuario, nil
+}
+
+// PerteneceA indica si el pago existe y corresponde a una suscripción del usuario
+func (s *ServicioPago) PerteneceA(ctx context.Context, id, idUsuario int32) (bool, error) {
+	pago, err := s.consultas.GetPago(ctx, id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return s.SuscripcionPerteneceA(ctx, pago.IDSuscripcion, idUsuario)
+}
+
 type ManejadorPago struct {
 	servicio *ServicioPago
 }
@@ -134,9 +156,13 @@ func (h *ManejadorPago) ManejarPagoPorID(w http.ResponseWriter, r *http.Request)
 
 	switch r.Method {
 	case http.MethodGet:
-		h.obtenerPorID(w, r, id)
+		if h.pagoEsDelUsuario(w, r, id) {
+			h.obtenerPorID(w, r, id)
+		}
 	case http.MethodDelete:
-		h.eliminar(w, r, id)
+		if h.pagoEsDelUsuario(w, r, id) {
+			h.eliminar(w, r, id)
+		}
 	default:
 		http.Error(w, "Método HTTP no permitido (los registros de pago son inmutables)", http.StatusMethodNotAllowed)
 	}
@@ -154,13 +180,50 @@ func (h *ManejadorPago) ManejarPagosPorSuscripcion(w http.ResponseWriter, r *htt
 		return
 	}
 
-	h.obtenerPorSuscripcion(w, r, idSuscripcion)
+	if h.suscripcionEsDelUsuario(w, r, idSuscripcion) {
+		h.obtenerPorSuscripcion(w, r, idSuscripcion)
+	}
+}
+
+// pagoEsDelUsuario y suscripcionEsDelUsuario responden 404 si el registro no
+// existe o es de otro usuario, para no revelar datos ajenos.
+func (h *ManejadorPago) pagoEsDelUsuario(w http.ResponseWriter, r *http.Request, id int32) bool {
+	usr, _ := UsuarioDeContexto(r.Context())
+	propio, err := h.servicio.PerteneceA(r.Context(), id, usr.IDUsuario)
+	if err != nil {
+		h.responderError(w, err)
+		return false
+	}
+	if !propio {
+		http.Error(w, "pago no encontrado", http.StatusNotFound)
+		return false
+	}
+	return true
+}
+
+func (h *ManejadorPago) suscripcionEsDelUsuario(w http.ResponseWriter, r *http.Request, idSuscripcion int32) bool {
+	usr, _ := UsuarioDeContexto(r.Context())
+	propia, err := h.servicio.SuscripcionPerteneceA(r.Context(), idSuscripcion, usr.IDUsuario)
+	if err != nil {
+		h.responderError(w, err)
+		return false
+	}
+	if !propia {
+		http.Error(w, "la suscripción especificada no existe", http.StatusNotFound)
+		return false
+	}
+	return true
 }
 
 func (h *ManejadorPago) crear(w http.ResponseWriter, r *http.Request) {
 	var entrada sqlc.CreatePagoParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
+		return
+	}
+
+	// si el id es inválido (<= 0) lo rechaza la capa de lógica con 400
+	if entrada.IDSuscripcion > 0 && !h.suscripcionEsDelUsuario(w, r, entrada.IDSuscripcion) {
 		return
 	}
 

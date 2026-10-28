@@ -207,6 +207,17 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 	}, nil
 }
 
+// PerteneceA indica si la suscripción existe y es del usuario indicado
+func (s *ServicioSuscripcion) PerteneceA(ctx context.Context, id, idUsuario int32) (bool, error) {
+	sub, err := s.consultas.GetSubscripcion(ctx, id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return sub.IDUsuario == idUsuario, nil
+}
+
 // Eliminar quita la suscripción previa comprobación
 func (s *ServicioSuscripcion) Eliminar(ctx context.Context, id int32) error {
 	_, err := s.consultas.GetSubscripcion(ctx, id)
@@ -246,14 +257,36 @@ func (h *ManejadorSuscripcion) ManejarSuscripcionPorID(w http.ResponseWriter, r 
 
 	switch r.Method {
 	case http.MethodGet:
-		h.obtenerPorID(w, r, id)
+		if h.esDelUsuario(w, r, id) {
+			h.obtenerPorID(w, r, id)
+		}
 	case http.MethodPut:
-		h.actualizar(w, r, id)
+		if h.esDelUsuario(w, r, id) {
+			h.actualizar(w, r, id)
+		}
 	case http.MethodDelete:
-		h.eliminar(w, r, id)
+		if h.esDelUsuario(w, r, id) {
+			h.eliminar(w, r, id)
+		}
 	default:
 		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
 	}
+}
+
+// esDelUsuario verifica que la suscripción sea del usuario de la sesión.
+// Si es de otro usuario responde 404, como si no existiera.
+func (h *ManejadorSuscripcion) esDelUsuario(w http.ResponseWriter, r *http.Request, id int32) bool {
+	usr, _ := UsuarioDeContexto(r.Context())
+	propia, err := h.servicio.PerteneceA(r.Context(), id, usr.IDUsuario)
+	if err != nil {
+		h.responderError(w, err)
+		return false
+	}
+	if !propia {
+		http.Error(w, "suscripción no encontrada", http.StatusNotFound)
+		return false
+	}
+	return true
 }
 
 // ManejarSuscripcionesPorUsuario atiende GET en /suscripciones/usuario/{id_usuario}
@@ -268,6 +301,11 @@ func (h *ManejadorSuscripcion) ManejarSuscripcionesPorUsuario(w http.ResponseWri
 		return
 	}
 
+	if usr, _ := UsuarioDeContexto(r.Context()); usr.IDUsuario != idUsuario {
+		http.Error(w, "Solo podés ver tus propias suscripciones", http.StatusForbidden)
+		return
+	}
+
 	h.obtenerPorUsuario(w, r, idUsuario)
 }
 
@@ -275,6 +313,15 @@ func (h *ManejadorSuscripcion) crear(w http.ResponseWriter, r *http.Request) {
 	var entrada sqlc.CreateSubscripcionParams
 	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
 		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
+		return
+	}
+
+	// la suscripción se crea a nombre del usuario de la sesión
+	usr, _ := UsuarioDeContexto(r.Context())
+	if entrada.IDUsuario == 0 {
+		entrada.IDUsuario = usr.IDUsuario
+	} else if entrada.IDUsuario != usr.IDUsuario {
+		http.Error(w, "Solo podés crear suscripciones a tu nombre", http.StatusForbidden)
 		return
 	}
 

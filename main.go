@@ -36,25 +36,34 @@ func main() {
 	servicioPago := logic.NuevoServicioPago(queries)
 
 	// 4. Handlers
+	sesiones := logic.NuevasSesiones()
+	manejadorSesion := logic.NuevoManejadorSesion(sesiones, servicioUsuario)
 	manejadorUsuario := logic.NuevoManejadorUsuario(servicioUsuario)
 	manejadorServicio := logic.NuevoManejadorServicio(servicioServicio)
 	manejadorSuscripcion := logic.NuevoManejadorSuscripcion(servicioSuscripcion)
 	manejadorPago := logic.NuevoManejadorPago(servicioPago)
 
+	// Proteger exige sesión (y tipo de cuenta) solo para los métodos indicados
+	proteger := manejadorSesion.Proteger
+	empresa, consumidor, cualquiera := logic.TipoEmpresa, logic.TipoConsumidor, ""
+	get, post, put, del := http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete
+
 	// 5. Rutas
-	http.HandleFunc("/usuarios", manejadorUsuario.ManejarUsuarios)      // GET, POST
-	http.HandleFunc("/usuarios/", manejadorUsuario.ManejarUsuarioPorID) // GET, PUT, DELETE
+	http.HandleFunc("/sesion", manejadorSesion.ManejarSesion) // GET (quién soy), POST (login), DELETE (logout)
 
-	http.HandleFunc("/servicios", manejadorServicio.ManejarServicios)      // GET, POST
-	http.HandleFunc("/servicios/", manejadorServicio.ManejarServicioPorID) // GET, PUT, DELETE
+	http.HandleFunc("/usuarios", manejadorUsuario.ManejarUsuarios)                                                // GET, POST (registro público)
+	http.HandleFunc("/usuarios/", proteger(cualquiera, []string{put, del}, manejadorUsuario.ManejarUsuarioPorID)) // GET, PUT, DELETE (solo la propia cuenta)
 
-	http.HandleFunc("/suscripciones", manejadorSuscripcion.ManejarSuscripciones)                    // POST
-	http.HandleFunc("/suscripciones/", manejadorSuscripcion.ManejarSuscripcionPorID)                // GET, PUT, DELETE
-	http.HandleFunc("/suscripciones/usuario/", manejadorSuscripcion.ManejarSuscripcionesPorUsuario) // GET
+	http.HandleFunc("/servicios", proteger(empresa, []string{post}, manejadorServicio.ManejarServicios))          // GET público, POST empresas
+	http.HandleFunc("/servicios/", proteger(empresa, []string{put, del}, manejadorServicio.ManejarServicioPorID)) // GET público, PUT y DELETE empresas
 
-	http.HandleFunc("/pagos", manejadorPago.ManejarPagos)                            // POST
-	http.HandleFunc("/pagos/", manejadorPago.ManejarPagoPorID)                       // GET, DELETE
-	http.HandleFunc("/pagos/suscripcion/", manejadorPago.ManejarPagosPorSuscripcion) // GET
+	http.HandleFunc("/suscripciones", proteger(consumidor, []string{post}, manejadorSuscripcion.ManejarSuscripciones))                   // POST
+	http.HandleFunc("/suscripciones/", proteger(consumidor, []string{get, put, del}, manejadorSuscripcion.ManejarSuscripcionPorID))      // GET, PUT, DELETE (propias)
+	http.HandleFunc("/suscripciones/usuario/", proteger(consumidor, []string{get}, manejadorSuscripcion.ManejarSuscripcionesPorUsuario)) // GET (propias)
+
+	http.HandleFunc("/pagos", proteger(consumidor, []string{post}, manejadorPago.ManejarPagos))                           // POST
+	http.HandleFunc("/pagos/", proteger(consumidor, []string{get, del}, manejadorPago.ManejarPagoPorID))                  // GET, DELETE (propios)
+	http.HandleFunc("/pagos/suscripcion/", proteger(consumidor, []string{get}, manejadorPago.ManejarPagosPorSuscripcion)) // GET (propios)
 
 	// 6. Frontend (TP4): HTML, CSS y JS estáticos que consumen la API.
 	// Las rutas de la API son más específicas, así que tienen prioridad sobre "/".

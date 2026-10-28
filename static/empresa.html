@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mis servicios · Suscripciones+</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-pagina="empresa">
+  <header class="barra">
+    <a href="/" class="marca">Suscripciones+</a>
+    <!-- app.js reemplaza estos links según la sesión -->
+    <nav id="navegacion">
+      <a href="login.html">Iniciar sesión</a>
+      <a href="registro.html" class="boton">Registrarse</a>
+    </nav>
+  </header>
+
+  <div id="mensaje" class="mensaje" role="status" hidden></div>
+
+  <main class="contenido">
+    <section class="bienvenida">
+      <h1 id="saludo">Hola</h1>
+      <p class="lema">Administrá el catálogo de servicios que ven los consumidores.</p>
+    </section>
+
+    <div class="tablero">
+      <section class="panel">
+        <h2>Nuevo servicio</h2>
+        <form id="form-servicio" class="formulario">
+          <label>Nombre
+            <input type="text" name="nombre" required>
+          </label>
+          <label>Categoría
+            <select name="categoria" required>
+              <option>Streaming</option>
+              <option>Música</option>
+              <option>Software</option>
+              <option>Gimnasio</option>
+              <option>Salud</option>
+              <option>Financiero</option>
+              <option>Turismo</option>
+              <option>Otros</option>
+            </select>
+          </label>
+          <button type="submit">Crear servicio</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Catálogo de servicios</h2>
+        <ul id="lista-servicios" class="lista"></ul>
+      </section>
+    </div>
+  </main>
+
+  <footer class="pie">
+    <small>Krohn · Trapani · Cicopiedi</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

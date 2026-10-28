@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrarse · Suscripciones+</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-pagina="registro">
+  <header class="barra">
+    <a href="/" class="marca">Suscripciones+</a>
+    <!-- app.js reemplaza estos links según la sesión -->
+    <nav id="navegacion">
+      <a href="login.html">Iniciar sesión</a>
+      <a href="registro.html" class="boton">Registrarse</a>
+    </nav>
+  </header>
+
+  <div id="mensaje" class="mensaje" role="status" hidden></div>
+
+  <main class="contenido">
+    <section class="panel tarjeta-chica">
+      <h2 id="titulo-registro">Crear cuenta</h2>
+      <p id="ayuda-empresa" class="ayuda" hidden>
+        Las cuentas de empresa administran el catálogo de servicios que ven los consumidores.
+      </p>
+      <form id="form-registro" class="formulario">
+        <label><span id="etiqueta-nombre">Nombre</span>
+          <input type="text" name="nombre" required>
+        </label>
+        <label>Email
+          <input type="email" name="email" required>
+        </label>
+        <label>Contraseña
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit">Registrarme</button>
+      </form>
+      <p class="ayuda">¿Ya tenés cuenta? <a href="login.html">Iniciá sesión</a></p>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <p id="aviso-empresas">¿Sos una empresa? <a href="registro.html?tipo=empresa">Registrá tu empresa</a> para publicar tus servicios.</p>
+    <small>Krohn · Trapani · Cicopiedi</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -3,9 +3,9 @@
 
 -- name: CreateUsuario :one
 INSERT INTO usuario (
-    nombre, email, password
+    nombre, email, password, tipo
 ) VALUES (
-    $1, $2, $3
+    $1, $2, $3, $4
 )
 RETURNING *;
 

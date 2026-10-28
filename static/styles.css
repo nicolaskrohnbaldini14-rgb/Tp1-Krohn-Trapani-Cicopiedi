@@ -29,18 +29,118 @@ h2 {
   font-family: Verdana, Geneva, Tahoma, sans-serif;
 }
 
-.encabezado {
-  padding: 40px 16px 8px;
-  text-align: center;
-}
-
-.encabezado h1 {
-  margin: 0 0 8px;
-  font-size: clamp(2.5rem, 8vw, 4.5rem);
+a {
   color: var(--primario-oscuro);
 }
 
-.encabezado p {
+/* ---------- Barra de navegación (Flexbox) ---------- */
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+  border-bottom: 1px solid rgba(236, 230, 212, 0.35);
+}
+
+.marca {
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+  font-size: 1.4rem;
+  font-weight: bold;
+  text-decoration: none;
+  color: var(--primario-oscuro);
+}
+
+#navegacion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+#navegacion a {
+  color: var(--crema);
+  text-decoration: none;
+}
+
+#navegacion a:hover {
+  text-decoration: underline;
+}
+
+.saludo {
+  color: var(--crema);
+  font-weight: bold;
+}
+
+.boton-salir {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--crema);
+  color: var(--crema);
+}
+
+.boton-salir:hover {
+  background: var(--crema);
+  color: var(--primario-oscuro);
+}
+
+/* enlaces con aspecto de botón */
+.boton,
+#navegacion a.boton {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--primario);
+  color: var(--crema);
+  text-decoration: none;
+  text-align: center;
+}
+
+.boton:hover,
+#navegacion a.boton:hover {
+  background: var(--primario-oscuro);
+  text-decoration: none;
+}
+
+.boton-claro {
+  background: var(--crema);
+  color: var(--primario-oscuro);
+}
+
+.boton-claro:hover {
+  background: var(--campo);
+}
+
+.contenido {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+.contenido > h1,
+.bienvenida h1,
+.titulo-con-accion h1 {
+  color: var(--primario-oscuro);
+}
+
+/* ---------- Portada (home) ---------- */
+
+.portada {
+  text-align: center;
+  padding: 24px 0 8px;
+}
+
+.portada h1 {
+  margin: 0 0 8px;
+  font-size: clamp(2.8rem, 10vw, 5.5rem);
+  color: var(--primario-oscuro);
+}
+
+.lema {
   margin: 0;
   font-family: Verdana, Geneva, Tahoma, sans-serif;
   font-size: 1.3rem;
@@ -48,14 +148,114 @@ h2 {
   color: var(--primario);
 }
 
-/* Layout principal con CSS Grid: dos paneles arriba y suscripciones abajo a lo ancho */
+.descripcion {
+  max-width: 46rem;
+  margin: 24px auto 32px;
+  font-size: 1.25rem;
+  line-height: 1.8;
+  color: var(--crema);
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+
+.acciones .boton {
+  min-width: 11rem;
+}
+
+section > h2 {
+  color: var(--crema);
+}
+
+/* catálogo público con CSS Grid */
+.catalogo {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 16px;
+}
+
+.catalogo li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--tarjeta);
+}
+
+.catalogo li.vacio {
+  grid-column: 1 / -1;
+}
+
+/* ---------- Login y registro ---------- */
+
+.tarjeta-chica {
+  max-width: 28rem;
+  margin: 16px auto;
+}
+
+.ayuda {
+  color: var(--suave);
+}
+
+/* ---------- Cuenta del consumidor ---------- */
+
+.bienvenida {
+  margin-bottom: 24px;
+}
+
+.bienvenida h1 {
+  margin-bottom: 8px;
+}
+
+.opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 24px;
+}
+
+.opcion {
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.opcion:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 47, 68, 0.35);
+}
+
+.opcion h3 {
+  margin-top: 0;
+  color: var(--primario);
+}
+
+.titulo-con-accion {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.titulo-con-accion h1 {
+  margin: 0;
+}
+
+/* Panel de empresas con CSS Grid: formulario y catálogo lado a lado */
 .tablero {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: 24px;
-  max-width: 1100px;
-  margin: 24px auto;
-  padding: 0 16px;
+  align-items: start;
 }
 
 .panel {
@@ -69,10 +269,6 @@ h2 {
 .panel h2 {
   margin-top: 0;
   color: var(--primario);
-}
-
-.panel-ancho {
-  grid-column: 1 / -1;
 }
 
 /* Formularios con Flexbox */
@@ -186,20 +382,17 @@ button:hover {
   color: var(--crema);
 }
 
-.filtro {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--borde);
-}
-
 .total {
   margin: 0;
   font-weight: 600;
+}
+
+.panel .total + .lista {
+  margin-top: 16px;
+}
+
+.panel .lista:first-child {
+  margin-top: 0;
 }
 
 .mensaje {
@@ -228,6 +421,11 @@ button:hover {
   text-align: center;
   color: var(--crema);
   padding: 16px;
+}
+
+.pie a {
+  color: var(--primario-oscuro);
+  font-weight: bold;
 }
 
 @media (max-width: 720px) {

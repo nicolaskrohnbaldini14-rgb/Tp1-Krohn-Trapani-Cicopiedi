@@ -1,3 +1,38 @@
+# ---------- 0. Crear servicio sin sesión (401) ----------
+POST {{host}}/servicios
+Content-Type: application/json
+{
+  "nombre": "SinSesion-{{newUuid}}",
+  "categoria": "Streaming"
+}
+HTTP 401
+
+
+# ---------- Setup: cuenta de empresa con sesión iniciada ----------
+POST {{host}}/usuarios
+Content-Type: application/json
+{
+  "nombre": "Empresa Servicios",
+  "email": "empresa_{{newUuid}}@test.com",
+  "password": "secreto123",
+  "tipo": "empresa"
+}
+HTTP 201
+[Captures]
+empresa_id: jsonpath "$.id_usuario"
+empresa_email: jsonpath "$.email"
+[Asserts]
+jsonpath "$.tipo" == "empresa"
+
+# --- login como empresa ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{empresa_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
 
 # ---------- 1. Crear servicio (201) ----------
 POST {{host}}/servicios
@@ -199,6 +234,16 @@ Content-Type: application/json
 HTTP 201
 [Captures]
 usuario_id: jsonpath "$.id_usuario"
+usuario_email: jsonpath "$.email"
+
+# --- las suscripciones las crea un consumidor ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "secreto123"
+}
+HTTP 200
 
 POST {{host}}/suscripciones
 Content-Type: application/json
@@ -213,6 +258,29 @@ Content-Type: application/json
   "estado": "Activa"
 }
 HTTP 201
+
+# un consumidor no puede crear ni borrar servicios (403)
+POST {{host}}/servicios
+Content-Type: application/json
+{
+  "nombre": "Consumidor-{{newUuid}}",
+  "categoria": "Otros"
+}
+HTTP 403
+[Asserts]
+body contains "solo para cuentas de empresa"
+
+DELETE {{host}}/servicios/{{servicio2_id}}
+HTTP 403
+
+# --- vuelvo a la empresa ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{empresa_email}}",
+  "password": "secreto123"
+}
+HTTP 200
 
 DELETE {{host}}/servicios/{{servicio2_id}}
 HTTP 409
@@ -234,8 +302,29 @@ HTTP 404
 # ---------- Limpieza ----------
 # Al borrar el usuario se borran sus suscripciones (ON DELETE CASCADE),
 # y recien ahi se puede borrar servicio2.
+# --- cada usuario borra su propia cuenta ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{usuario_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
 DELETE {{host}}/usuarios/{{usuario_id}}
 HTTP 204
 
+# --- la empresa borra el servicio y su cuenta ---
+POST {{host}}/sesion
+Content-Type: application/json
+{
+  "email": "{{empresa_email}}",
+  "password": "secreto123"
+}
+HTTP 200
+
 DELETE {{host}}/servicios/{{servicio2_id}}
+HTTP 204
+
+DELETE {{host}}/usuarios/{{empresa_id}}
 HTTP 204
