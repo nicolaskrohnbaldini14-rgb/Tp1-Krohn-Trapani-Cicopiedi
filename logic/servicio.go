@@ -17,7 +17,7 @@ var categoriasValidas = map[string]bool{
 	"Streaming": true,
 	"Música":    true,
 	"Software":  true,
-	"Gimnasio":  true,
+	"Deporte":  true,
 	"Salud":     true,
 	"Financiero": true ,
 	"Turismo":   true,
