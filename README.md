@@ -208,7 +208,6 @@ que necesita, prueba los casos exitosos y los de error de cada endpoint.
 │   ├── index.html
 │   ├── app.js
 │   └── styles.css
-├── ejercicios/           # Ejercicios 1 a 5 del TP4
 ├── logic/                # Lógica de negocio y handlers HTTP de cada entidad
 │   ├── usuario.go
 │   ├── servicio.go
