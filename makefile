@@ -1,8 +1,8 @@
-APP_NAME := Tp3-Krohn-Trapani-Cicopiedi
+APP_NAME := Tp4-Krohn-Trapani-Cicopiedi
 HOST := http://localhost:8080
 HURL_FILES := hurl/usuario.hurl hurl/servicio.hurl hurl/suscripcion.hurl hurl/pago.hurl
 
-.PHONY: all run clean-docker docker-up generate build test test-api docker-down clean
+.PHONY: all run run-app clean-docker docker-up generate build test test-api docker-down clean
 
 
 all: test-api
@@ -53,3 +53,11 @@ run: test-api
 
 clean:
 	@rm -rf tmp
+
+# run-app: levanta la base, genera el código, compila y deja la app corriendo
+# en http://localhost:8080. Al cortar con Ctrl+C borra contenedores y volúmenes.
+run-app: build
+	@echo "==> Aplicación disponible en $(HOST) (Ctrl+C para detener)"
+	@trap '$(MAKE) --no-print-directory docker-down' EXIT; \
+	trap 'exit 0' INT TERM; \
+	./tmp/$(APP_NAME)

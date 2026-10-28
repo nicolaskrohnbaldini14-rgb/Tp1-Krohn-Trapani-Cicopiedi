@@ -56,7 +56,11 @@ func main() {
 	http.HandleFunc("/pagos/", manejadorPago.ManejarPagoPorID)                       // GET, DELETE
 	http.HandleFunc("/pagos/suscripcion/", manejadorPago.ManejarPagosPorSuscripcion) // GET
 
-	// 6. Servidor HTTP
+	// 6. Frontend (TP4): HTML, CSS y JS estáticos que consumen la API.
+	// Las rutas de la API son más específicas, así que tienen prioridad sobre "/".
+	http.Handle("/", http.FileServer(http.Dir("./static")))
+
+	// 7. Servidor HTTP
 	log.Println("Servidor escuchando en http://localhost:8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatalf("Error al iniciar el servidor HTTP: %v", err)

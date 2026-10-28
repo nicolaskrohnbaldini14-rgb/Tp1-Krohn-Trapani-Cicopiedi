@@ -17,12 +17,72 @@ cd Tp1-Krohn-Trapani-Cicopiedi
 ```
 ## Cambiar a rama requerida
 ```bash
-git checkout tp3
+git checkout tp4
 ```
-## Ejecutar pruebas
+## Levantar la aplicación (TP4)
+```bash
+make run-app
+```
+
+`make run-app` realiza todas las tareas necesarias:
+
+1. **Tareas previas:** borra contenedores y volúmenes anteriores, levanta PostgreSQL
+   en Docker y espera a que el healthcheck indique que la base está lista, ejecuta
+   `sqlc generate` y compila el ejecutable en `tmp/`.
+2. **Ejecución:** deja corriendo el servidor en <http://localhost:8080>, que sirve
+   tanto la API REST como el frontend.
+3. **Tareas posteriores:** al detenerlo con `Ctrl+C` borra los contenedores y volúmenes.
+
+## Ejecutar pruebas (tests de sqlc + pruebas Hurl de la API)
 ```bash
 make
 ```
+
+# Frontend (TP4)
+
+La interfaz está en [`static/`](static/) y la sirve el mismo servidor Go
+(`http.FileServer` registrado en `/`), por lo que el navegador y la API
+comparten origen y no hace falta configurar CORS.
+
+| Archivo | Contenido |
+|---|---|
+| [`static/index.html`](static/index.html) | Estructura: título, un formulario y un contenedor (`<ul id="lista-...">`) por cada entidad. |
+| [`static/app.js`](static/app.js) | Comunicación con la API usando `fetch`. |
+| [`static/styles.css`](static/styles.css) | Estilos. El tablero usa **CSS Grid** y los formularios y listas **Flexbox**. |
+
+Funcionamiento de `app.js`:
+
+- **Carga inicial:** al cargar la página (`DOMContentLoaded`) hace `GET /usuarios`
+  y `GET /servicios`, y genera dinámicamente un `<li>` por entidad con su
+  información y un botón **Eliminar**. También completa los `<select>` del
+  formulario de suscripciones.
+- **Alta:** cada formulario tiene un listener de `submit` que hace
+  `preventDefault()`, arma el JSON con los datos de los inputs y envía un
+  `POST` (`/usuarios`, `/servicios` o `/suscripciones`). Si sale bien, vuelve a
+  pedir la lista completa y refresca la vista.
+- **Borrado con delegación de eventos:** como los botones se crean
+  dinámicamente, hay un único listener de `click` sobre cada lista que detecta
+  el botón presionado, toma el ID desde `data-id` y hace el `DELETE`
+  correspondiente. Tras un borrado exitoso se refresca la lista.
+- **Suscripciones:** se listan por usuario (`GET /suscripciones/usuario/{id}`)
+  eligiendo el usuario en el selector, y se muestra el gasto mensual de las
+  suscripciones activas.
+- **Errores:** los mensajes que devuelve la API (por ejemplo `409` por email
+  repetido o al intentar borrar un servicio con suscripciones) se muestran en
+  un aviso arriba de la página.
+
+## Ejercicios del TP4
+
+Los ejercicios de práctica están en [`ejercicios/`](ejercicios/) y se abren
+directamente en el navegador (no necesitan el servidor):
+
+| Carpeta | Tema |
+|---|---|
+| `ejercicio1/` | Manipulación del DOM (`getElementById`, `querySelector`, `innerHTML`). |
+| `ejercicio2/` | Creación y eliminación de elementos (`createElement`, `appendChild`, `remove`). |
+| `ejercicio3/` | Box Model (`width`, `padding`, `border`, `margin`, `:nth-child`). |
+| `ejercicio4/` | Flexbox: `flex-direction`, `justify-content`, `align-items` y `gap`, con una variante por valor. |
+| `ejercicio5/` | CSS Grid con `grid-column`/`grid-row` y la versión opcional con `grid-template-areas`. |
 
 # Documentación de persistencia
 
@@ -49,7 +109,7 @@ queries en [`db/queries/queries.sql`](db/queries/queries.sql), que cubren las
 operaciones CRUD (Create, Get, List, Update, Delete) para cada una de las 4
 entidades. El código generado vive en `db/sqlc/` (`models.go`, `queries.sql.go`,
 `db.go`) y **no debe editarse a mano** — se regenera automáticamente cada vez
-que se corre `sqlc generate` (parte de `make test-api`).
+que se corre `sqlc generate` (parte de `make run-app` y `make test-api`).
 
 Los tests de integración (`main_test.go`) validan el CRUD contra una base
 Postgres real levantada en Docker. Hay un test independiente por tabla
@@ -153,22 +213,27 @@ que necesita, prueba los casos exitosos y los de error de cada endpoint.
 
 ```
 .
-├── main.go               # Conexión a la base, armado de capas y rutas HTTP
+├── main.go               # Conexión a la base, armado de capas, rutas HTTP y frontend
 ├── main_test.go          # Tests de integración CRUD de cada tabla (sqlc)
+├── static/               # Frontend del TP4 (servido en /)
+│   ├── index.html
+│   ├── app.js
+│   └── styles.css
+├── ejercicios/           # Ejercicios 1 a 5 del TP4
 ├── logic/                # Lógica de negocio y handlers HTTP de cada entidad
 │   ├── usuario.go
 │   ├── servicio.go
 │   ├── suscripcion.go
-│   ├── pago.go
+│   └── pago.go
 ├── db/
 │   ├── schema/schema.sql # Tablas y claves foráneas
 │   ├── queries/queries.sql
 │   └── sqlc/             # Código generado por sqlc (no se versiona)
 ├── hurl/                 # Pruebas de los endpoints
-│   └── pago.hurl
-│   └── servicio.hurl
-│   └── suscripcion.hurl
-│   └── usuario.hurl              
+│   ├── pago.hurl
+│   ├── servicio.hurl
+│   ├── suscripcion.hurl
+│   └── usuario.hurl
 ├── docker-compose.yml    # PostgreSQL con healthcheck
 ├── sqlc.yaml
 └── makefile

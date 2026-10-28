@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suscripciones+</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="encabezado">
+    <h1>Suscripciones+</h1>
+    <p>¡Todos tus servicios, en el mismo lugar!</p>
+  </header>
+
+  <div id="mensaje" class="mensaje" role="status" hidden></div>
+
+  <main class="tablero">
+
+    <!-- ===================== USUARIOS ===================== -->
+    <section class="panel" id="panel-usuarios">
+      <h2>Usuarios</h2>
+      <form id="form-usuario" class="formulario">
+        <label>Nombre
+          <input type="text" name="nombre" required>
+        </label>
+        <label>Email
+          <input type="email" name="email" required>
+        </label>
+        <label>Contraseña
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit">Crear usuario</button>
+      </form>
+      <ul id="lista-usuarios" class="lista"></ul>
+    </section>
+
+    <!-- ===================== SERVICIOS ===================== -->
+    <section class="panel" id="panel-servicios">
+      <h2>Servicios</h2>
+      <form id="form-servicio" class="formulario">
+        <label>Nombre
+          <input type="text" name="nombre" required>
+        </label>
+        <label>Categoría
+          <select name="categoria" required>
+            <option>Streaming</option>
+            <option>Música</option>
+            <option>Software</option>
+            <option>Gimnasio</option>
+            <option>Salud</option>
+            <option>Financiero</option>
+            <option>Turismo</option>
+            <option>Otros</option>
+          </select>
+        </label>
+        <button type="submit">Crear servicio</button>
+      </form>
+      <ul id="lista-servicios" class="lista"></ul>
+    </section>
+
+    <!-- ===================== SUSCRIPCIONES ===================== -->
+    <section class="panel panel-ancho" id="panel-suscripciones">
+      <h2>Suscripciones</h2>
+      <form id="form-suscripcion" class="formulario formulario-grilla">
+        <label>Usuario
+          <select name="id_usuario" class="select-usuarios" required></select>
+        </label>
+        <label>Servicio
+          <select name="id_servicio" id="select-servicios" required></select>
+        </label>
+        <label>Monto mensual
+          <input type="number" name="monto" min="0.01" step="0.01" required>
+        </label>
+        <label>Fecha de inicio
+          <input type="date" name="fecha_inicio" required>
+        </label>
+        <label>Fecha de vencimiento
+          <input type="date" name="fecha_vencimiento" required>
+        </label>
+        <label>Usuario de la cuenta
+          <input type="text" name="usuario_cuenta" required>
+        </label>
+        <label>Contraseña de la cuenta
+          <input type="password" name="password_cuenta" required>
+        </label>
+        <label>Estado
+          <select name="estado">
+            <option>Activa</option>
+            <option>Pausada</option>
+            <option>Cancelada</option>
+          </select>
+        </label>
+        <button type="submit">Crear suscripción</button>
+      </form>
+
+      <div class="filtro">
+        <label>Ver suscripciones de
+          <select id="filtro-usuario" class="select-usuarios"></select>
+        </label>
+        <p id="total-mensual" class="total"></p>
+      </div>
+      <ul id="lista-suscripciones" class="lista"></ul>
+    </section>
+  </main>
+
+  <footer class="pie">Krohn · Trapani · Cicopiedi</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
