@@ -80,11 +80,6 @@ func (s *ServicioPago) ObtenerPorID(ctx context.Context, id int32) (sqlc.Pago, e
 	return pago, nil
 }
 
-// ListarTodos recupera todos los pagos registrados, del más reciente al más antiguo
-func (s *ServicioPago) ListarTodos(ctx context.Context) ([]sqlc.ListTodosLosPagosRow, error) {
-	return s.consultas.ListTodosLosPagos(ctx)
-}
-
 // ListarPorSuscripcion recupera el historial de pagos de una suscripción
 func (s *ServicioPago) ListarPorSuscripcion(ctx context.Context, idSuscripcion int32) ([]sqlc.Pago, error) {
 	// Verificar previamente que la suscripción exista

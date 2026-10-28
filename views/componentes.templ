@@ -19,6 +19,26 @@ templ MensajeVacio(texto string) {
 	<p class="vacio">{ texto }</p>
 }
 
+// AvisoError muestra el mensaje de error de una operación (si lo hay)
+templ AvisoError(mensaje string) {
+	if mensaje != "" {
+		<article class="aviso-error" role="alert">{ mensaje }</article>
+	}
+}
+
+// ErrorPage se usa para accesos no permitidos o páginas inexistentes
+templ ErrorPage(sesion *Sesion, titulo string, mensaje string) {
+	@Layout(titulo, sesion, contenidoError(titulo, mensaje))
+}
+
+templ contenidoError(titulo string, mensaje string) {
+	<article class="tarjeta-chica">
+		<header>{ titulo }</header>
+		<p>{ mensaje }</p>
+		<a href="/" role="button">Volver al inicio</a>
+	</article>
+}
+
 // formatearMonto convierte "2500.00" en "$ 2.500,00"
 func formatearMonto(monto string) string {
 	valor, err := strconv.ParseFloat(monto, 64)

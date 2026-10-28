@@ -1,6 +1,6 @@
 APP_NAME := Tp5-Krohn-Trapani-Cicopiedi
 HOST := http://localhost:8080
-HURL_FILES := hurl/usuario.hurl hurl/servicio.hurl hurl/suscripcion.hurl hurl/pago.hurl
+HURL_FILES := hurl/publico.hurl hurl/cuentas.hurl hurl/empresa.hurl hurl/suscripcion.hurl
 
 # Si sqlc no está instalado se compila y ejecuta con "go run"
 SQLC := $(shell command -v sqlc 2>/dev/null || echo "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1")

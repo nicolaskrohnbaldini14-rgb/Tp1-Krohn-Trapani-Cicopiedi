@@ -41,14 +41,59 @@ article > header {
   font-family: Verdana, Geneva, Tahoma, sans-serif;
 }
 
-.encabezado {
-  text-align: center;
-  padding-top: 2.5rem;
+/* ---------- Barra de navegación ---------- */
+
+.barra {
+  border-bottom: 1px solid rgba(236, 230, 212, 0.35);
+  margin-bottom: 1.5rem;
 }
 
-.encabezado h1 {
-  font-size: clamp(2.5rem, 8vw, 4.5rem);
-  margin-bottom: 0.25rem;
+.barra a,
+.saludo {
+  color: var(--crema);
+}
+
+.barra a.marca {
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+  font-weight: bold;
+  font-size: 1.4rem;
+  color: var(--azul-oscuro);
+}
+
+.barra a[role="button"] {
+  color: var(--crema);
+}
+
+.saludo {
+  font-weight: bold;
+}
+
+.form-salir {
+  margin: 0;
+}
+
+.form-salir button {
+  margin: 0;
+  padding: 0.35rem 0.8rem;
+  color: var(--crema);
+  border-color: var(--crema);
+}
+
+.form-salir button:hover {
+  background-color: var(--crema);
+  color: var(--azul-oscuro);
+}
+
+/* ---------- Portada (home) ---------- */
+
+.portada {
+  text-align: center;
+  padding: 2rem 0 1rem;
+}
+
+.portada h1 {
+  font-size: clamp(2.8rem, 10vw, 5.5rem);
+  margin-bottom: 0.5rem;
 }
 
 .lema {
@@ -58,12 +103,101 @@ article > header {
   font-weight: bold;
 }
 
-.encabezado nav {
-  justify-content: center;
+.descripcion {
+  max-width: 46rem;
+  margin: 1.5rem auto 2rem;
+  font-size: 1.25rem;
+  line-height: 1.8;
+  color: var(--crema);
 }
 
-.encabezado nav a {
-  color: var(--crema);
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.acciones a[role="button"] {
+  min-width: 11rem;
+}
+
+.acciones a.secondary {
+  background-color: var(--crema);
+  border-color: var(--crema);
+  color: var(--azul-oscuro);
+}
+
+.catalogo {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 1rem;
+}
+
+.catalogo li {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 1rem;
+  border-radius: var(--pico-border-radius);
+  background-color: var(--crema);
+}
+
+/* ---------- Cuenta del consumidor ---------- */
+
+h1 {
+  color: var(--azul-oscuro);
+}
+
+.bienvenida {
+  margin-bottom: 1.5rem;
+}
+
+.opciones a.opcion {
+  text-decoration: none;
+  color: inherit;
+}
+
+.opciones article {
+  height: 100%;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.opciones a.opcion:hover article {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 47, 68, 0.35);
+}
+
+.opciones h3 {
+  color: var(--azul-medio);
+}
+
+.titulo-con-accion {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.titulo-con-accion h1 {
+  margin: 0;
+}
+
+/* ---------- Formularios de login y registro ---------- */
+
+.tarjeta-chica {
+  max-width: 28rem;
+  margin: 1rem auto;
+}
+
+.ayuda {
+  color: var(--pico-muted-color);
 }
 
 section {
@@ -169,4 +303,9 @@ td {
   text-align: center;
   color: var(--crema);
   padding-bottom: 2rem;
+}
+
+.pie a {
+  color: var(--azul-oscuro);
+  font-weight: bold;
 }

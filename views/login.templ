@@ -1,0 +1,26 @@
+package views
+
+templ LoginPage(email string, mensajeError string) {
+	@Layout("Iniciar sesión", nil, contenidoLogin(email, mensajeError))
+}
+
+templ contenidoLogin(email string, mensajeError string) {
+	<article class="tarjeta-chica">
+		<header>Iniciar sesión</header>
+		@AvisoError(mensajeError)
+		<form method="post" action="/login">
+			<label>
+				Email
+				<input type="email" name="email" value={ email } required autofocus/>
+			</label>
+			<label>
+				Contraseña
+				<input type="password" name="password" required/>
+			</label>
+			<button type="submit">Ingresar</button>
+		</form>
+		<footer>
+			¿No tenés cuenta? <a href="/registro">Registrate</a>
+		</footer>
+	</article>
+}

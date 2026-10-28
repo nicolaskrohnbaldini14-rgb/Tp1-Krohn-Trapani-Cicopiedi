@@ -6,6 +6,7 @@ import (
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
 
+// ServicioList es la tabla editable que ven las empresas
 templ ServicioList(servicios []sqlc.Servicio) {
 	if len(servicios) == 0 {
 		@MensajeVacio("Todavía no hay servicios cargados.")
@@ -25,12 +26,28 @@ templ ServicioList(servicios []sqlc.Servicio) {
 							<td>{ s.Nombre }</td>
 							<td><span class="etiqueta">{ s.Categoria }</span></td>
 							<td>
-								@BotonEliminar(fmt.Sprintf("/servicios/%d/eliminar", s.IDServicio))
+								@BotonEliminar(fmt.Sprintf("/empresa/servicios/%d/eliminar", s.IDServicio))
 							</td>
 						</tr>
 					}
 				</tbody>
 			</table>
 		</div>
+	}
+}
+
+// CatalogoServicios es la versión pública, de solo lectura, que se ve en el inicio
+templ CatalogoServicios(servicios []sqlc.Servicio) {
+	if len(servicios) == 0 {
+		@MensajeVacio("Todavía no hay servicios publicados.")
+	} else {
+		<ul class="catalogo">
+			for _, s := range servicios {
+				<li>
+					<strong>{ s.Nombre }</strong>
+					<span class="etiqueta">{ s.Categoria }</span>
+				</li>
+			}
+		</ul>
 	}
 }

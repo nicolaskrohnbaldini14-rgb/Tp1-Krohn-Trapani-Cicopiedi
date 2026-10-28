@@ -46,6 +46,7 @@ func crearUsuarioPrueba(t *testing.T, queries *sqlc.Queries) sqlc.Usuario {
 		Nombre:   "Nicolas",
 		Email:    "nicolas@example.com",
 		Password: "password123",
+		Tipo:     "consumidor",
 	})
 	if err != nil {
 		t.Fatalf("Error al crear usuario: %v", err)
@@ -139,6 +140,7 @@ func TestUsuario_CRUD(t *testing.T) {
 			Nombre:   "Usuario A Borrar",
 			Email:    "aborrar@example.com",
 			Password: "password123",
+			Tipo:     "consumidor",
 		})
 		if err != nil {
 			t.Fatalf("Error al crear usuario auxiliar para borrar: %v", err)
@@ -322,46 +324,3 @@ func TestPago_CRUD(t *testing.T) {
 	})
 }
 
-
-// TEST 5: LISTADOS QUE USA LA PÁGINA PRINCIPAL (TP5)
-
-func TestListadosPaginaPrincipal(t *testing.T) {
-	queries := conectarDB(t)
-	ctx := context.Background()
-
-	usr := crearUsuarioPrueba(t, queries)
-	srv := crearServicioPrueba(t, queries)
-	sub := crearSuscripcionPrueba(t, queries, usr.IDUsuario, srv.IDServicio)
-
-	t.Run("ListSuscripciones", func(t *testing.T) {
-		lista, err := queries.ListSuscripciones(ctx)
-		if err != nil {
-			t.Fatalf("Error al listar suscripciones: %v", err)
-		}
-		if len(lista) != 1 {
-			t.Fatalf("Se esperaba 1 suscripción, se obtuvieron %d", len(lista))
-		}
-		if lista[0].UsuarioNombre != usr.Nombre || lista[0].ServicioNombre != srv.Nombre {
-			t.Errorf("La suscripción debería incluir el nombre del usuario y del servicio, se obtuvo %+v", lista[0])
-		}
-	})
-
-	t.Run("ListTodosLosPagos", func(t *testing.T) {
-		_, err := queries.CreatePago(ctx, sqlc.CreatePagoParams{
-			IDSuscripcion: sub.IDSuscripcion,
-			Monto:         "6000.00",
-			FechaPago:     time.Now(),
-		})
-		if err != nil {
-			t.Fatalf("Error al crear pago: %v", err)
-		}
-
-		pagos, err := queries.ListTodosLosPagos(ctx)
-		if err != nil {
-			t.Fatalf("Error al listar pagos: %v", err)
-		}
-		if len(pagos) != 1 || pagos[0].UsuarioNombre != usr.Nombre {
-			t.Errorf("Se esperaba 1 pago del usuario %q, se obtuvo %+v", usr.Nombre, pagos)
-		}
-	})
-}

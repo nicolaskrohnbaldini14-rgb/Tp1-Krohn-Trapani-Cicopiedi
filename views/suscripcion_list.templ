@@ -7,16 +7,31 @@ import (
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
 
-templ SuscripcionList(suscripciones []sqlc.ListSuscripcionesRow) {
+templ MisSuscripcionesPage(sesion *Sesion, suscripciones []sqlc.ListSubscripcionesUsuarioRow, mensajeError string) {
+	@Layout("Mis suscripciones", sesion, contenidoMisSuscripciones(suscripciones, mensajeError))
+}
+
+templ contenidoMisSuscripciones(suscripciones []sqlc.ListSubscripcionesUsuarioRow, mensajeError string) {
+	<div class="titulo-con-accion">
+		<h1>Mis suscripciones</h1>
+		<a href="/cuenta/suscripciones/nueva" role="button">Nueva suscripción</a>
+	</div>
+	@AvisoError(mensajeError)
+	<article>
+		@SuscripcionList(suscripciones)
+	</article>
+}
+
+// SuscripcionList muestra las suscripciones del usuario y su gasto mensual activo
+templ SuscripcionList(suscripciones []sqlc.ListSubscripcionesUsuarioRow) {
 	if len(suscripciones) == 0 {
-		@MensajeVacio("Todavía no hay suscripciones registradas.")
+		@MensajeVacio("Todavía no registraste ninguna suscripción.")
 	} else {
 		<p class="total">Gasto mensual activo: <strong>{ totalActivo(suscripciones) }</strong></p>
 		<div class="overflow-auto">
 			<table class="striped">
 				<thead>
 					<tr>
-						<th>Usuario</th>
 						<th>Servicio</th>
 						<th>Monto</th>
 						<th>Vigencia</th>
@@ -28,10 +43,8 @@ templ SuscripcionList(suscripciones []sqlc.ListSuscripcionesRow) {
 				<tbody>
 					for _, s := range suscripciones {
 						<tr>
-							<td>{ s.UsuarioNombre }</td>
 							<td>
 								{ s.ServicioNombre }
-								<br/>
 								<small class="etiqueta">{ s.ServicioCategoria }</small>
 							</td>
 							<td>{ formatearMonto(s.Monto) }</td>
@@ -39,7 +52,7 @@ templ SuscripcionList(suscripciones []sqlc.ListSuscripcionesRow) {
 							<td>{ s.UsuarioCuenta }</td>
 							<td><span class={ "estado", "estado-" + s.Estado }>{ s.Estado }</span></td>
 							<td>
-								@BotonEliminar(fmt.Sprintf("/suscripciones/%d/eliminar", s.IDSuscripcion))
+								@BotonEliminar(fmt.Sprintf("/cuenta/suscripciones/%d/eliminar", s.IDSuscripcion))
 							</td>
 						</tr>
 					}
@@ -50,7 +63,7 @@ templ SuscripcionList(suscripciones []sqlc.ListSuscripcionesRow) {
 }
 
 // totalActivo suma los montos de las suscripciones en estado Activa
-func totalActivo(suscripciones []sqlc.ListSuscripcionesRow) string {
+func totalActivo(suscripciones []sqlc.ListSubscripcionesUsuarioRow) string {
 	total := 0.0
 	for _, s := range suscripciones {
 		if s.Estado != "Activa" {

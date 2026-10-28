@@ -1,19 +1,64 @@
 package views
 
-templ UsuarioForm() {
-	<form method="post" action="/usuarios">
+// DatosRegistro son los valores que se vuelven a mostrar si el alta falla
+type DatosRegistro struct {
+	Empresa bool
+	Nombre  string
+	Email   string
+	Error   string
+}
+
+templ RegistroPage(datos DatosRegistro) {
+	@Layout(tituloRegistro(datos.Empresa), nil, contenidoRegistro(datos))
+}
+
+func tituloRegistro(empresa bool) string {
+	if empresa {
+		return "Registrar empresa"
+	}
+	return "Crear cuenta"
+}
+
+templ contenidoRegistro(datos DatosRegistro) {
+	<article class="tarjeta-chica">
+		<header>{ tituloRegistro(datos.Empresa) }</header>
+		if datos.Empresa {
+			<p class="ayuda">Las cuentas de empresa administran el catálogo de servicios que ven los consumidores.</p>
+		}
+		@AvisoError(datos.Error)
+		@UsuarioForm(datos)
+		<footer>
+			¿Ya tenés cuenta? <a href="/login">Iniciá sesión</a>
+		</footer>
+	</article>
+}
+
+// UsuarioForm es el formulario de alta de usuarios (consumidores o empresas)
+templ UsuarioForm(datos DatosRegistro) {
+	<form method="post" action={ templ.URL(accionRegistro(datos.Empresa)) }>
 		<label>
-			Nombre
-			<input type="text" name="nombre" required/>
+			if datos.Empresa {
+				Nombre de la empresa
+			} else {
+				Nombre
+			}
+			<input type="text" name="nombre" value={ datos.Nombre } required/>
 		</label>
 		<label>
 			Email
-			<input type="email" name="email" required/>
+			<input type="email" name="email" value={ datos.Email } required/>
 		</label>
 		<label>
 			Contraseña
 			<input type="password" name="password" required/>
 		</label>
-		<button type="submit">Crear usuario</button>
+		<button type="submit">Registrarme</button>
 	</form>
+}
+
+func accionRegistro(empresa bool) string {
+	if empresa {
+		return "/empresas/registro"
+	}
+	return "/registro"
 }

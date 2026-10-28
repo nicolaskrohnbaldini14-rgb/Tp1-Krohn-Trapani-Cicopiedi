@@ -3,9 +3,9 @@
 
 -- name: CreateUsuario :one
 INSERT INTO usuario (
-    nombre, email, password
+    nombre, email, password, tipo
 ) VALUES (
-    $1, $2, $3
+    $1, $2, $3, $4
 )
 RETURNING *;
 
@@ -95,22 +95,6 @@ JOIN servicio ser ON sub.id_servicio = ser.id_servicio
 WHERE sub.id_usuario = $1
 ORDER BY ser.nombre ASC;
 
--- name: ListSuscripciones :many
-SELECT
-    sub.id_suscripcion,
-    sub.monto,
-    sub.fecha_vencimiento,
-    sub.fecha_inicio,
-    sub.usuario_cuenta,
-    sub.estado,
-    usr.nombre AS usuario_nombre,
-    ser.nombre AS servicio_nombre,
-    ser.categoria AS servicio_categoria
-FROM suscripcion sub
-JOIN usuario usr ON sub.id_usuario = usr.id_usuario
-JOIN servicio ser ON sub.id_servicio = ser.id_servicio
-ORDER BY usr.nombre, ser.nombre;
-
 -- name: UpdateSubscripcion :exec
 UPDATE suscripcion
 SET monto = $2, 
@@ -148,19 +132,6 @@ WHERE id_pago = $1;
 SELECT * FROM pago 
 WHERE id_suscripcion = $1 
 ORDER BY fecha_pago DESC;
-
--- name: ListTodosLosPagos :many
-SELECT
-    p.id_pago,
-    p.monto,
-    p.fecha_pago,
-    usr.nombre AS usuario_nombre,
-    ser.nombre AS servicio_nombre
-FROM pago p
-JOIN suscripcion sub ON p.id_suscripcion = sub.id_suscripcion
-JOIN usuario usr ON sub.id_usuario = usr.id_usuario
-JOIN servicio ser ON sub.id_servicio = ser.id_servicio
-ORDER BY p.fecha_pago DESC, p.id_pago DESC;
 
 -- name: DeletePago :exec
 DELETE FROM pago 

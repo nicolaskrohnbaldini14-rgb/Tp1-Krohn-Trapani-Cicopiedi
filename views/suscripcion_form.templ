@@ -7,58 +7,76 @@ import (
 	"tp2-krohn-trapani-cicopiedi/logic"
 )
 
-templ SuscripcionForm(usuarios []sqlc.Usuario, servicios []sqlc.Servicio) {
-	if len(usuarios) == 0 || len(servicios) == 0 {
-		@MensajeVacio("Para crear una suscripción primero cargá al menos un usuario y un servicio.")
+// FormSuscripcion guarda lo que ingresó el usuario para no perderlo si hay un
+// error (la contraseña de la cuenta no se vuelve a mostrar)
+type FormSuscripcion struct {
+	IDServicio       int32
+	Monto            string
+	FechaInicio      string
+	FechaVencimiento string
+	UsuarioCuenta    string
+	Estado           string
+}
+
+templ NuevaSuscripcionPage(sesion *Sesion, servicios []sqlc.Servicio, form FormSuscripcion, mensajeError string) {
+	@Layout("Nueva suscripción", sesion, contenidoNuevaSuscripcion(servicios, form, mensajeError))
+}
+
+templ contenidoNuevaSuscripcion(servicios []sqlc.Servicio, form FormSuscripcion, mensajeError string) {
+	<h1>Nueva suscripción</h1>
+	@AvisoError(mensajeError)
+	<article>
+		@SuscripcionForm(servicios, form)
+	</article>
+	<p><a href="/cuenta/suscripciones">← Volver a mis suscripciones</a></p>
+}
+
+// SuscripcionForm crea una suscripción para el usuario que inició sesión
+// (el usuario sale de la sesión, no del formulario)
+templ SuscripcionForm(servicios []sqlc.Servicio, form FormSuscripcion) {
+	if len(servicios) == 0 {
+		@MensajeVacio("Todavía no hay servicios disponibles para suscribirse.")
 	} else {
-		<form method="post" action="/suscripciones">
+		<form method="post" action="/cuenta/suscripciones">
 			<div class="grid">
-				<label>
-					Usuario
-					<select name="id_usuario" required>
-						for _, u := range usuarios {
-							<option value={ strconv.Itoa(int(u.IDUsuario)) }>{ u.Nombre }</option>
-						}
-					</select>
-				</label>
 				<label>
 					Servicio
 					<select name="id_servicio" required>
 						for _, s := range servicios {
-							<option value={ strconv.Itoa(int(s.IDServicio)) }>{ s.Nombre } ({ s.Categoria })</option>
+							<option value={ strconv.Itoa(int(s.IDServicio)) } selected?={ s.IDServicio == form.IDServicio }>{ s.Nombre } ({ s.Categoria })</option>
 						}
 					</select>
 				</label>
 				<label>
 					Monto mensual
-					<input type="number" name="monto" min="0.01" step="0.01" required/>
-				</label>
-			</div>
-			<div class="grid">
-				<label>
-					Fecha de inicio
-					<input type="date" name="fecha_inicio" required/>
-				</label>
-				<label>
-					Fecha de vencimiento
-					<input type="date" name="fecha_vencimiento" required/>
+					<input type="number" name="monto" min="0.01" step="0.01" value={ form.Monto } required/>
 				</label>
 				<label>
 					Estado
 					<select name="estado">
 						for _, estado := range logic.Estados {
-							<option value={ estado }>{ estado }</option>
+							<option value={ estado } selected?={ estado == form.Estado }>{ estado }</option>
 						}
 					</select>
 				</label>
 			</div>
 			<div class="grid">
 				<label>
-					Usuario de la cuenta
-					<input type="text" name="usuario_cuenta" required/>
+					Fecha de inicio
+					<input type="date" name="fecha_inicio" value={ form.FechaInicio } required/>
 				</label>
 				<label>
-					Contraseña de la cuenta
+					Fecha de vencimiento
+					<input type="date" name="fecha_vencimiento" value={ form.FechaVencimiento } required/>
+				</label>
+			</div>
+			<div class="grid">
+				<label>
+					Usuario de la cuenta del servicio
+					<input type="text" name="usuario_cuenta" value={ form.UsuarioCuenta } required/>
+				</label>
+				<label>
+					Contraseña de la cuenta del servicio
 					<input type="password" name="password_cuenta" required/>
 				</label>
 			</div>

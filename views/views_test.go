@@ -21,76 +21,117 @@ func renderizar(t *testing.T, c templ.Component) string {
 	return buf.String()
 }
 
-func TestIndexPage_SinDatosMuestraMensajesVacios(t *testing.T) {
-	html := renderizar(t, IndexPage("Suscripciones+", DatosInicio{}))
-
-	esperados := []string{
-		"<!doctype html>",
-		"<title>Suscripciones+</title>",
-		"pico.min.css",
-		"Todavía no hay usuarios cargados.",
-		"Todavía no hay servicios cargados.",
-		"Todavía no hay suscripciones registradas.",
-		"Todavía no hay pagos registrados.",
-		`action="/usuarios"`,
-		`action="/servicios"`,
-	}
+func verificarContiene(t *testing.T, html string, esperados ...string) {
+	t.Helper()
 	for _, e := range esperados {
 		if !strings.Contains(html, e) {
 			t.Errorf("La página debería contener %q", e)
 		}
 	}
+}
 
-	// sin usuarios ni servicios no se ofrece el formulario de suscripciones
-	if strings.Contains(html, `action="/suscripciones"`) {
-		t.Error("No debería mostrarse el formulario de suscripciones sin usuarios ni servicios")
+func verificarNoContiene(t *testing.T, html string, prohibidos ...string) {
+	t.Helper()
+	for _, p := range prohibidos {
+		if strings.Contains(html, p) {
+			t.Errorf("La página no debería contener %q", p)
+		}
 	}
 }
 
-func TestIndexPage_ConDatos(t *testing.T) {
-	datos := DatosInicio{
-		Usuarios:  []sqlc.Usuario{{IDUsuario: 7, Nombre: "Nico", Email: "nico@example.com"}},
-		Servicios: []sqlc.Servicio{{IDServicio: 3, Nombre: "Netflix", Categoria: "Streaming"}},
-		Suscripciones: []sqlc.ListSuscripcionesRow{{
-			IDSuscripcion:     5,
-			Monto:             "2500.00",
-			FechaInicio:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-			FechaVencimiento:  time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC),
-			UsuarioCuenta:     "cuenta",
-			Estado:            "Activa",
-			UsuarioNombre:     "Nico",
-			ServicioNombre:    "Netflix",
-			ServicioCategoria: "Streaming",
-		}},
-		Error: "algo salió mal",
+func TestHomePage_SinSesion(t *testing.T) {
+	html := renderizar(t, HomePage(nil, nil))
+
+	verificarContiene(t, html,
+		"<!doctype html>",
+		"pico.min.css",
+		`href="/login"`,
+		`href="/registro"`,
+		`href="/empresas/registro"`,
+		"Todavía no hay servicios publicados.",
+	)
+	// el alta de servicios es solo para empresas
+	verificarNoContiene(t, html, `action="/empresa/servicios"`, "Cerrar sesión")
+}
+
+func TestHomePage_ConSesionYServicios(t *testing.T) {
+	servicios := []sqlc.Servicio{{IDServicio: 3, Nombre: "Netflix", Categoria: "Streaming"}}
+	html := renderizar(t, HomePage(&Sesion{Nombre: "Nico", Tipo: "consumidor"}, servicios))
+
+	verificarContiene(t, html, "Hola, Nico", "Cerrar sesión", `href="/cuenta"`, "Netflix", "Streaming")
+	verificarNoContiene(t, html, `action="/empresa/servicios"`, "/eliminar")
+}
+
+func TestCuentaPage(t *testing.T) {
+	suscripciones := []sqlc.ListSubscripcionesUsuarioRow{
+		{IDSuscripcion: 1, Monto: "2500.00", Estado: "Activa"},
+		{IDSuscripcion: 2, Monto: "1000.00", Estado: "Pausada"},
 	}
+	html := renderizar(t, CuentaPage(&Sesion{Nombre: "Nico", Tipo: "consumidor"}, suscripciones))
 
-	html := renderizar(t, IndexPage("Suscripciones+", datos))
+	verificarContiene(t, html,
+		"Hola, Nico",
+		"1 suscripción activa",
+		"$ 2.500,00 por mes",
+		`href="/cuenta/suscripciones"`,
+		`href="/cuenta/suscripciones/nueva"`,
+	)
+}
 
-	esperados := []string{
-		"nico@example.com",
-		`action="/usuarios/7/eliminar"`,
-		`action="/servicios/3/eliminar"`,
-		`action="/suscripciones/5/eliminar"`,
-		`action="/suscripciones"`,
-		`<option value="7">Nico</option>`,
+func TestMisSuscripcionesPage(t *testing.T) {
+	sesion := &Sesion{Nombre: "Nico", Tipo: "consumidor"}
+
+	vacia := renderizar(t, MisSuscripcionesPage(sesion, nil, ""))
+	verificarContiene(t, vacia, "Todavía no registraste ninguna suscripción.")
+
+	suscripciones := []sqlc.ListSubscripcionesUsuarioRow{{
+		IDSuscripcion:     5,
+		Monto:             "2500.00",
+		FechaInicio:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		FechaVencimiento:  time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC),
+		UsuarioCuenta:     "cuenta",
+		Estado:            "Activa",
+		ServicioNombre:    "Netflix",
+		ServicioCategoria: "Streaming",
+	}}
+	html := renderizar(t, MisSuscripcionesPage(sesion, suscripciones, "algo salió mal"))
+	verificarContiene(t, html,
+		`action="/cuenta/suscripciones/5/eliminar"`,
 		"$ 2.500,00",
 		"01/01/2026 al 31/12/2026",
 		"algo salió mal",
-	}
-	for _, e := range esperados {
-		if !strings.Contains(html, e) {
-			t.Errorf("La página debería contener %q", e)
-		}
-	}
+	)
 }
 
-func TestUsuarioList_EscapaHTML(t *testing.T) {
-	html := renderizar(t, UsuarioList([]sqlc.Usuario{{IDUsuario: 1, Nombre: "<script>alert(1)</script>"}}))
-
-	if strings.Contains(html, "<script>") {
-		t.Error("templ debería escapar el contenido ingresado por el usuario")
+func TestNuevaSuscripcionPage_ConservaLosDatos(t *testing.T) {
+	servicios := []sqlc.Servicio{
+		{IDServicio: 1, Nombre: "Netflix", Categoria: "Streaming"},
+		{IDServicio: 2, Nombre: "Spotify", Categoria: "Música"},
 	}
+	form := FormSuscripcion{IDServicio: 2, Monto: "999", FechaInicio: "2026-03-01", Estado: "Pausada"}
+	html := renderizar(t, NuevaSuscripcionPage(&Sesion{Nombre: "Nico", Tipo: "consumidor"}, servicios, form, ""))
+
+	verificarContiene(t, html,
+		`<option value="2" selected>`,
+		`value="999"`,
+		`value="2026-03-01"`,
+		`<option value="Pausada" selected>`,
+	)
+	// el usuario sale de la sesión: no se elige en el formulario
+	verificarNoContiene(t, html, `name="id_usuario"`)
+}
+
+func TestEmpresaPage(t *testing.T) {
+	servicios := []sqlc.Servicio{{IDServicio: 3, Nombre: "Netflix", Categoria: "Streaming"}}
+	html := renderizar(t, EmpresaPage(&Sesion{Nombre: "Netflix SA", Tipo: "empresa"}, servicios, "", ""))
+
+	verificarContiene(t, html, `action="/empresa/servicios"`, `action="/empresa/servicios/3/eliminar"`, `href="/empresa"`)
+	verificarNoContiene(t, html, `href="/cuenta/suscripciones"`)
+}
+
+func TestServicioList_EscapaHTML(t *testing.T) {
+	html := renderizar(t, ServicioList([]sqlc.Servicio{{IDServicio: 1, Nombre: "<script>alert(1)</script>"}}))
+	verificarNoContiene(t, html, "<script>")
 }
 
 func TestFormatearNumero(t *testing.T) {

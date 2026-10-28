@@ -32,7 +32,7 @@ func main() {
 
 	// 3. Handlers que renderizan las vistas templ (la lógica de negocio sigue en logic/)
 	mux := http.NewServeMux()
-	handlers.NuevoWeb(queries).Registrar(mux)
+	handlers.NuevoWeb(queries, handlers.NuevasSesiones()).Registrar(mux)
 
 	// 4. Servidor HTTP
 	log.Println("Servidor escuchando en http://localhost:8080")

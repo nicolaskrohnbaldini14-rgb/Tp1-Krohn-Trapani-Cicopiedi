@@ -133,11 +133,6 @@ func (s *ServicioSuscripcion) ObtenerPorID(ctx context.Context, id int32) (sqlc.
 	return ocultarPasswordCuenta(sub), nil
 }
 
-// Listar trae todas las suscripciones con el nombre del usuario y del servicio
-func (s *ServicioSuscripcion) Listar(ctx context.Context) ([]sqlc.ListSuscripcionesRow, error) {
-	return s.consultas.ListSuscripciones(ctx)
-}
-
 // ListarPorUsuario trae todas las suscripciones registradas para un usuario
 func (s *ServicioSuscripcion) ListarPorUsuario(ctx context.Context, idUsuario int32) ([]sqlc.ListSubscripcionesUsuarioRow, error) {
 	return s.consultas.ListSubscripcionesUsuario(ctx, idUsuario)
@@ -215,6 +210,19 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 func (s *ServicioSuscripcion) Eliminar(ctx context.Context, id int32) error {
 	_, err := s.consultas.GetSubscripcion(ctx, id)
 	if err == sql.ErrNoRows {
+		return fmt.Errorf("suscripción no encontrada")
+	} else if err != nil {
+		return err
+	}
+
+	return s.consultas.DeleteSubscripcion(ctx, id)
+}
+
+// EliminarDeUsuario borra la suscripción solo si pertenece al usuario indicado.
+// Si es de otro usuario responde como si no existiera.
+func (s *ServicioSuscripcion) EliminarDeUsuario(ctx context.Context, id, idUsuario int32) error {
+	sub, err := s.consultas.GetSubscripcion(ctx, id)
+	if err == sql.ErrNoRows || (err == nil && sub.IDUsuario != idUsuario) {
 		return fmt.Errorf("suscripción no encontrada")
 	} else if err != nil {
 		return err

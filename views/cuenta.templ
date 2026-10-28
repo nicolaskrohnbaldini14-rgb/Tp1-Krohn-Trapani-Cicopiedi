@@ -1,0 +1,52 @@
+package views
+
+import (
+	"strconv"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+)
+
+// CuentaPage es lo primero que ve el consumidor al ingresar
+templ CuentaPage(sesion *Sesion, suscripciones []sqlc.ListSubscripcionesUsuarioRow) {
+	@Layout("Mi cuenta", sesion, contenidoCuenta(sesion, suscripciones))
+}
+
+templ contenidoCuenta(sesion *Sesion, suscripciones []sqlc.ListSubscripcionesUsuarioRow) {
+	<section class="bienvenida">
+		<h1>Hola, { sesion.Nombre }</h1>
+		<p class="lema">
+			Tenés { textoActivas(cantidadActivas(suscripciones)) } · { totalActivo(suscripciones) } por mes
+		</p>
+	</section>
+	<div class="grid opciones">
+		<a href="/cuenta/suscripciones" class="opcion">
+			<article>
+				<h3>Ver mis suscripciones</h3>
+				<p>Consultá todo lo que pagás, el estado y la vigencia de cada servicio.</p>
+			</article>
+		</a>
+		<a href="/cuenta/suscripciones/nueva" class="opcion">
+			<article>
+				<h3>Nueva suscripción</h3>
+				<p>Agregá un servicio al que te suscribiste para tenerlo controlado.</p>
+			</article>
+		</a>
+	</div>
+}
+
+func textoActivas(cantidad int) string {
+	if cantidad == 1 {
+		return "1 suscripción activa"
+	}
+	return strconv.Itoa(cantidad) + " suscripciones activas"
+}
+
+func cantidadActivas(suscripciones []sqlc.ListSubscripcionesUsuarioRow) int {
+	cantidad := 0
+	for _, s := range suscripciones {
+		if s.Estado == "Activa" {
+			cantidad++
+		}
+	}
+	return cantidad
+}

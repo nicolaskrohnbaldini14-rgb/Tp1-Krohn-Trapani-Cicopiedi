@@ -7,8 +7,29 @@ import (
 	"regexp"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
+
+// Tipos de cuenta: los consumidores gestionan sus suscripciones y las
+// empresas administran el catálogo de servicios.
+const (
+	TipoConsumidor = "consumidor"
+	TipoEmpresa    = "empresa"
+)
+
+// ErrCredenciales se devuelve cuando el email o la contraseña no coinciden.
+// Es el mismo mensaje en ambos casos para no revelar qué emails existen.
+var ErrCredenciales = fmt.Errorf("email o contraseña incorrectos")
+
+func hashearPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
 
 func validarCorreo(correo string) error {
 	patron := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
@@ -42,10 +63,18 @@ func NuevoServicioUsuario(q *sqlc.Queries) *ServicioUsuario {
 	return &ServicioUsuario{consultas: q}
 }
 
-// Crear aplica las validaciones y verifica que el correo no esté registrado
+// Crear aplica las validaciones, verifica que el correo no esté registrado
+// y guarda la contraseña hasheada con bcrypt
 func (s *ServicioUsuario) Crear(ctx context.Context, entrada sqlc.CreateUsuarioParams) (sqlc.Usuario, error) {
 	if err := validarCamposUsuario(entrada.Nombre, entrada.Email, entrada.Password); err != nil {
 		return sqlc.Usuario{}, err
+	}
+
+	if entrada.Tipo == "" {
+		entrada.Tipo = TipoConsumidor
+	}
+	if entrada.Tipo != TipoConsumidor && entrada.Tipo != TipoEmpresa {
+		return sqlc.Usuario{}, fmt.Errorf("el tipo de cuenta '%s' no es válido", entrada.Tipo)
 	}
 
 	_, err := s.consultas.GetUsuarioByEmail(ctx, entrada.Email)
@@ -55,12 +84,33 @@ func (s *ServicioUsuario) Crear(ctx context.Context, entrada sqlc.CreateUsuarioP
 		return sqlc.Usuario{}, err
 	}
 
+	hash, err := hashearPassword(entrada.Password)
+	if err != nil {
+		return sqlc.Usuario{}, err
+	}
+	entrada.Password = hash
+
 	nuevo, err := s.consultas.CreateUsuario(ctx, entrada)
 	if err != nil {
 		return sqlc.Usuario{}, err
 	}
 
 	return ocultarPassword(nuevo), nil
+}
+
+// Autenticar verifica el email y la contraseña y devuelve el usuario
+func (s *ServicioUsuario) Autenticar(ctx context.Context, email, password string) (sqlc.Usuario, error) {
+	usr, err := s.consultas.GetUsuarioByEmail(ctx, strings.TrimSpace(email))
+	if err == sql.ErrNoRows {
+		return sqlc.Usuario{}, ErrCredenciales
+	} else if err != nil {
+		return sqlc.Usuario{}, err
+	}
+
+	if bcrypt.CompareHashAndPassword([]byte(usr.Password), []byte(password)) != nil {
+		return sqlc.Usuario{}, ErrCredenciales
+	}
+	return ocultarPassword(usr), nil
 }
 
 // ObtenerPorID busca un usuario por su identificador único
@@ -110,8 +160,14 @@ func (s *ServicioUsuario) Actualizar(ctx context.Context, id int32, entrada sqlc
 		}
 	}
 
+	hash, err := hashearPassword(entrada.Password)
+	if err != nil {
+		return sqlc.Usuario{}, err
+	}
+
 	// el id siempre viene de la URL, no del body
 	entrada.IDUsuario = id
+	entrada.Password = hash
 	if err := s.consultas.UpdateUsuario(ctx, entrada); err != nil {
 		return sqlc.Usuario{}, err
 	}
@@ -120,6 +176,7 @@ func (s *ServicioUsuario) Actualizar(ctx context.Context, id int32, entrada sqlc
 		IDUsuario: id,
 		Nombre:    entrada.Nombre,
 		Email:     entrada.Email,
+		Tipo:      usuarioExistente.Tipo,
 		CreatedAt: usuarioExistente.CreatedAt,
 	}, nil
 }

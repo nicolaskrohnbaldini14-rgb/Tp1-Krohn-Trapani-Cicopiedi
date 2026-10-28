@@ -1,36 +1,73 @@
 package views
 
+// Sesion tiene los datos del usuario que inició sesión que necesita la vista.
+// Es nil cuando la persona navega sin haber ingresado.
+type Sesion struct {
+	Nombre string
+	Tipo   string
+}
+
+func (s *Sesion) EsConsumidor() bool {
+	return s != nil && s.Tipo == "consumidor"
+}
+
+func (s *Sesion) EsEmpresa() bool {
+	return s != nil && s.Tipo == "empresa"
+}
+
 // Layout define la estructura base de todas las páginas y renderiza
 // el componente recibido como contenido principal.
-templ Layout(titulo string, contenido templ.Component) {
+templ Layout(titulo string, sesion *Sesion, contenido templ.Component) {
 	<!DOCTYPE html>
 	<html lang="es" data-theme="light">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>{ titulo }</title>
+			<title>{ titulo } · Suscripciones+</title>
 			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css"/>
 			<link rel="stylesheet" href="/static/styles.css"/>
 		</head>
 		<body>
-			<header class="container encabezado">
-				<h1>Suscripciones+</h1>
-				<p class="lema">¡Todos tus servicios, en el mismo lugar!</p>
-				<nav>
-					<ul>
-						<li><a href="#usuarios">Usuarios</a></li>
-						<li><a href="#servicios">Servicios</a></li>
-						<li><a href="#suscripciones">Suscripciones</a></li>
-						<li><a href="#pagos">Pagos</a></li>
-					</ul>
-				</nav>
+			<header class="container">
+				@Navegacion(sesion)
 			</header>
 			<main class="container">
 				@contenido
 			</main>
 			<footer class="container pie">
+				if sesion == nil {
+					<p>¿Sos una empresa? <a href="/empresas/registro">Registrá tu empresa</a> para publicar tus servicios.</p>
+				}
 				<small>Krohn · Trapani · Cicopiedi</small>
 			</footer>
 		</body>
 	</html>
+}
+
+templ Navegacion(sesion *Sesion) {
+	<nav class="barra">
+		<ul>
+			<li><a href="/" class="marca">Suscripciones+</a></li>
+		</ul>
+		<ul>
+			if sesion == nil {
+				<li><a href="/login">Iniciar sesión</a></li>
+				<li><a href="/registro" role="button">Registrarse</a></li>
+			} else {
+				if sesion.EsConsumidor() {
+					<li><a href="/cuenta/suscripciones">Mis suscripciones</a></li>
+					<li><a href="/cuenta/suscripciones/nueva">Nueva suscripción</a></li>
+				}
+				if sesion.EsEmpresa() {
+					<li><a href="/empresa">Mis servicios</a></li>
+				}
+				<li class="saludo">Hola, { sesion.Nombre }</li>
+				<li>
+					<form method="post" action="/logout" class="form-salir">
+						<button type="submit" class="outline">Cerrar sesión</button>
+					</form>
+				</li>
+			}
+		</ul>
+	</nav>
 }
