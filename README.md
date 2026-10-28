@@ -227,22 +227,8 @@ regeneran con `make generate` (incluido en `make run-app`).
 | `empresa.hurl` | Registro de empresa y ABM de servicios. |
 | `suscripcion.hurl` | Alta y baja de suscripciones, validaciones, que otro consumidor no pueda borrarlas y que no se pueda borrar un servicio con suscripciones. |
 
-# Ejercicios del TP5
 
-En [`ejercicios/productos/`](ejercicios/productos/) están los ejercicios 1 a 4
-del práctico (productos con SQLite, sqlc y templ). Es un módulo de Go
-independiente: usa `mattn/go-sqlite3`, que necesita `gcc` (cgo).
 
-```bash
-cd ejercicios/productos
-```
-```bash
-make run
-```
-
-Genera el código con sqlc y templ y levanta el servidor en
-<http://localhost:8080> (crea `products.db` si no existe). `GET /` lista los
-productos y el formulario hace `POST /products`, que redirige a `/`.
 
 # Estructura del proyecto
 
@@ -261,7 +247,6 @@ productos y el formulario hace `POST /products`, que redirige a `/`.
 │   ├── queries/queries.sql
 │   └── sqlc/               # Generado por sqlc (no se versiona)
 ├── hurl/                   # Pruebas de la aplicación
-├── ejercicios/productos/   # Ejercicios 1 a 4 del TP5
 ├── docker-compose.yml      # PostgreSQL con healthcheck
 ├── sqlc.yaml
 └── makefile
