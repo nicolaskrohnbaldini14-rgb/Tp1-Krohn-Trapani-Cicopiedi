@@ -20,7 +20,6 @@ header "Content-Type" == "application/json"
 jsonpath "$.id_usuario" > 0
 jsonpath "$.nombre" == "Usuario Test"
 jsonpath "$.password" == ""
-jsonpath "$.tipo" == "consumidor"
 jsonpath "$.created_at" exists
 
 

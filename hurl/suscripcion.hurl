@@ -1,51 +1,21 @@
-# ---------- Setup: una empresa publica el servicio ----------
-POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "Empresa Subs",
-  "email": "empresasubs_{{newUuid}}@test.com",
-  "password": "secreto123",
-  "tipo": "empresa"
-}
-HTTP 201
-[Captures]
-empresa_id: jsonpath "$.id_usuario"
-empresa_email: jsonpath "$.email"
-[Asserts]
-jsonpath "$.tipo" == "empresa"
-
-# --- login como empresa ---
-POST {{host}}/sesion
-Content-Type: application/json
-{
-  "email": "{{empresa_email}}",
-  "password": "secreto123"
-}
+# ---------- Setup: servicios del catálogo precargado ----------
+GET {{host}}/servicios
 HTTP 200
-
-POST {{host}}/servicios
-Content-Type: application/json
-{
-  "nombre": "ServicioSubs-{{newUuid}}",
-  "categoria": "Streaming"
-}
-HTTP 201
 [Captures]
-servicio_id: jsonpath "$.id_servicio"
+servicio_id: jsonpath "$[?(@.nombre=='Netflix')].id_servicio" nth 0
+padel_id: jsonpath "$[?(@.nombre=='Pádel')].id_servicio" nth 0
 
-# una empresa no puede crear suscripciones (403)
+
+# sin sesión no se pueden crear suscripciones (401)
 POST {{host}}/suscripciones
 Content-Type: application/json
 {
   "id_servicio": {{servicio_id}},
   "monto": "1500.00",
   "fecha_inicio": "2026-01-01T00:00:00Z",
-  "fecha_vencimiento": "2026-12-31T00:00:00Z",
-  "usuario_cuenta": "cuenta@test.com",
-  "password_cuenta": "clavecuenta",
-  "estado": "Activa"
+  "fecha_vencimiento": "2026-12-31T00:00:00Z"
 }
-HTTP 403
+HTTP 401
 
 
 # ---------- Setup: consumidor con sesión iniciada ----------
@@ -54,15 +24,12 @@ Content-Type: application/json
 {
   "nombre": "Usuario Suscripciones",
   "email": "subs_{{newUuid}}@test.com",
-  "password": "secreto123",
-  "tipo": "consumidor"
+  "password": "secreto123"
 }
 HTTP 201
 [Captures]
 usuario_id: jsonpath "$.id_usuario"
 usuario_email: jsonpath "$.email"
-[Asserts]
-jsonpath "$.tipo" == "consumidor"
 
 # --- login como consumidor ---
 POST {{host}}/sesion
@@ -98,7 +65,7 @@ jsonpath "$.id_servicio" == {{servicio_id}}
 jsonpath "$.monto" == "1500.00"
 jsonpath "$.estado" == "Activa"
 jsonpath "$.usuario_cuenta" == "cuenta@test.com"
-jsonpath "$.password_cuenta" == ""
+jsonpath "$.password_cuenta" == null
 jsonpath "$.fecha_inicio" startsWith "2026-01-01"
 jsonpath "$.fecha_vencimiento" startsWith "2026-12-31"
 
@@ -243,22 +210,21 @@ HTTP 400
 body contains "obligatorias"
 
 
-# ---------- 10. Sin credenciales de cuenta (400) ----------
+# ---------- 10. Sin credenciales de cuenta (201): son opcionales ----------
+# por ejemplo, una cancha de pádel no tiene usuario ni contraseña
 POST {{host}}/suscripciones
 Content-Type: application/json
 {
-  "id_usuario": {{usuario_id}},
-  "id_servicio": {{servicio_id}},
-  "monto": "100.00",
+  "id_servicio": {{padel_id}},
+  "monto": "15000.00",
   "fecha_inicio": "2026-01-01T00:00:00Z",
-  "fecha_vencimiento": "2026-12-31T00:00:00Z",
-  "usuario_cuenta": "",
-  "password_cuenta": "",
-  "estado": "Activa"
+  "fecha_vencimiento": "2026-12-31T00:00:00Z"
 }
-HTTP 400
+HTTP 201
 [Asserts]
-body contains "obligatorias"
+jsonpath "$.estado" == "Activa"
+jsonpath "$.usuario_cuenta" == null
+jsonpath "$.password_cuenta" == null
 
 
 # ---------- 11. Estado invalido (400) ----------
@@ -279,6 +245,32 @@ HTTP 400
 body contains "no es válido"
 
 
+# ---------- 11b. Una suscripción nueva no puede crearse pausada ni cancelada (400) ----------
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_servicio": {{servicio_id}},
+  "monto": "100.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "estado": "Pausada"
+}
+HTTP 400
+[Asserts]
+body contains "siempre en estado Activa"
+
+POST {{host}}/suscripciones
+Content-Type: application/json
+{
+  "id_servicio": {{servicio_id}},
+  "monto": "100.00",
+  "fecha_inicio": "2026-01-01T00:00:00Z",
+  "fecha_vencimiento": "2026-12-31T00:00:00Z",
+  "estado": "Cancelada"
+}
+HTTP 400
+
+
 # ---------- 12. JSON invalido (400) ----------
 POST {{host}}/suscripciones
 Content-Type: application/json
@@ -294,7 +286,7 @@ HTTP 200
 [Asserts]
 jsonpath "$.id_suscripcion" == {{sub_id}}
 jsonpath "$.estado" == "Activa"
-jsonpath "$.password_cuenta" == ""
+jsonpath "$.password_cuenta" == null
 
 
 # ---------- 14. Obtener inexistente (404) ----------
@@ -327,7 +319,22 @@ jsonpath "$.estado" == "Pausada"
 jsonpath "$.usuario_cuenta" == "nuevacuenta@test.com"
 jsonpath "$.fecha_vencimiento" startsWith "2027-06-30"
 jsonpath "$.fecha_inicio" startsWith "2026-01-01"
-jsonpath "$.password_cuenta" == ""
+jsonpath "$.password_cuenta" == null
+
+
+# ---------- 16b. Actualizar sin mandar contraseña conserva la guardada (200) ----------
+PUT {{host}}/suscripciones/{{sub_id}}
+Content-Type: application/json
+{
+  "monto": "1999.50",
+  "fecha_vencimiento": "2027-06-30T00:00:00Z",
+  "estado": "Pausada",
+  "usuario_cuenta": "nuevacuenta@test.com"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.estado" == "Pausada"
+jsonpath "$.password_cuenta" == null
 
 
 # ---------- 17. Verificar que persistio ----------
@@ -458,7 +465,7 @@ jsonpath "$.estado" == "Activa"
 GET {{host}}/suscripciones/usuario/{{usuario_id}}
 HTTP 200
 [Asserts]
-jsonpath "$" count == 2
+jsonpath "$" count == 3
 jsonpath "$[0].servicio_nombre" exists
 jsonpath "$[0].servicio_categoria" == "Streaming"
 jsonpath "$[0].password_cuenta" not exists
@@ -470,15 +477,12 @@ Content-Type: application/json
 {
   "nombre": "Otro Consumidor",
   "email": "otro_{{newUuid}}@test.com",
-  "password": "secreto123",
-  "tipo": "consumidor"
+  "password": "secreto123"
 }
 HTTP 201
 [Captures]
 otro_id: jsonpath "$.id_usuario"
 otro_email: jsonpath "$.email"
-[Asserts]
-jsonpath "$.tipo" == "consumidor"
 
 # --- login como otro consumidor ---
 POST {{host}}/sesion
@@ -566,19 +570,4 @@ Content-Type: application/json
 HTTP 200
 
 DELETE {{host}}/usuarios/{{otro_id}}
-HTTP 204
-
-# --- la empresa borra el servicio y su cuenta ---
-POST {{host}}/sesion
-Content-Type: application/json
-{
-  "email": "{{empresa_email}}",
-  "password": "secreto123"
-}
-HTTP 200
-
-DELETE {{host}}/servicios/{{servicio_id}}
-HTTP 204
-
-DELETE {{host}}/usuarios/{{empresa_id}}
 HTTP 204

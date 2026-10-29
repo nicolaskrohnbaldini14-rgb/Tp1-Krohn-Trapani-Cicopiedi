@@ -3,9 +3,9 @@
 
 -- name: CreateUsuario :one
 INSERT INTO usuario (
-    nombre, email, password, tipo
+    nombre, email, password
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3
 )
 RETURNING *;
 
@@ -41,6 +41,15 @@ INSERT INTO servicio (
     $1, $2
 )
 RETURNING *;
+
+-- name: CrearServicioSiNoExiste :exec
+-- se usa para precargar el catálogo al iniciar la app (no duplica si ya existe)
+INSERT INTO servicio (
+    nombre, categoria
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (nombre) DO NOTHING;
 
 -- name: GetServicio :one
 SELECT * FROM servicio 

@@ -180,11 +180,10 @@ func (h *ManejadorSesion) usuarioActual(r *http.Request) (sqlc.Usuario, bool) {
 	return usr, true
 }
 
-// Proteger exige una sesión iniciada para los métodos indicados.
-// Si tipo no está vacío, además exige ese tipo de cuenta. Responde 401 si no
-// hay sesión y 403 si la cuenta es de otro tipo. El resto de los métodos pasa
-// directo al handler (por ejemplo, el GET público del catálogo de servicios).
-func (h *ManejadorSesion) Proteger(tipo string, metodos []string, siguiente http.HandlerFunc) http.HandlerFunc {
+// Proteger exige una sesión iniciada para los métodos indicados y responde
+// 401 si no la hay. El resto de los métodos pasa directo al handler (por
+// ejemplo, el GET público de un usuario).
+func (h *ManejadorSesion) Proteger(metodos []string, siguiente http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !slices.Contains(metodos, r.Method) {
 			siguiente(w, r)
@@ -194,14 +193,6 @@ func (h *ManejadorSesion) Proteger(tipo string, metodos []string, siguiente http
 		usr, ok := h.usuarioActual(r)
 		if !ok {
 			http.Error(w, "Tenés que iniciar sesión", http.StatusUnauthorized)
-			return
-		}
-		if tipo != "" && usr.Tipo != tipo {
-			mensaje := "Esta acción es solo para cuentas de empresa"
-			if tipo == TipoConsumidor {
-				mensaje = "Esta acción es solo para cuentas de consumidor"
-			}
-			http.Error(w, mensaje, http.StatusForbidden)
 			return
 		}
 

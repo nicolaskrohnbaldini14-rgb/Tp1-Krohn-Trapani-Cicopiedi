@@ -237,6 +237,25 @@ section > h2 {
   display: block;
 }
 
+/* título de cada categoría dentro del menú */
+.desplegable-menu li.desplegable-categoria {
+  margin-top: 6px;
+  padding: 6px 10px 2px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primario);
+}
+
+.desplegable-menu li.desplegable-categoria:first-child {
+  margin-top: 0;
+}
+
+.desplegable-menu li.desplegable-categoria:hover {
+  background: transparent;
+}
+
 /* ---------- Login y registro ---------- */
 
 .tarjeta-chica {
@@ -293,12 +312,19 @@ section > h2 {
   margin: 0;
 }
 
-/* Panel de empresas con CSS Grid: formulario y catálogo lado a lado */
-.tablero {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: 24px;
-  align-items: start;
+.ayuda-clara {
+  color: var(--crema);
+}
+
+/* selector de estado de cada suscripción en la lista */
+.select-estado {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.item .select-estado {
+  margin-left: auto;
 }
 
 .panel {
@@ -473,8 +499,8 @@ button:hover {
 }
 
 @media (max-width: 720px) {
-  .tablero {
-    grid-template-columns: 1fr;
+  .item {
+    flex-wrap: wrap;
   }
 
   .mensaje {

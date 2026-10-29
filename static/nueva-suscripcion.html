@@ -24,6 +24,7 @@
 
   <main class="contenido">
     <h1>Nueva suscripción</h1>
+    <p class="ayuda-clara">La suscripción se crea activa. Si el servicio no tiene una cuenta con usuario y contraseña (por ejemplo, un gimnasio o una cancha de pádel), dejá esos campos vacíos.</p>
 
     <section class="panel">
       <form id="form-suscripcion" class="formulario formulario-grilla">
@@ -33,24 +34,17 @@
         <label>Monto mensual
           <input type="number" name="monto" min="0.01" step="0.01" required>
         </label>
-        <label>Estado
-          <select name="estado">
-            <option>Activa</option>
-            <option>Pausada</option>
-            <option>Cancelada</option>
-          </select>
-        </label>
         <label>Fecha de inicio
           <input type="date" name="fecha_inicio" required>
         </label>
         <label>Fecha de vencimiento
           <input type="date" name="fecha_vencimiento" required>
         </label>
-        <label>Usuario de la cuenta del servicio
-          <input type="text" name="usuario_cuenta" required>
+        <label>Usuario de la cuenta del servicio (opcional)
+          <input type="text" name="usuario_cuenta">
         </label>
-        <label>Contraseña de la cuenta del servicio
-          <input type="password" name="password_cuenta" required>
+        <label>Contraseña de la cuenta del servicio (opcional)
+          <input type="password" name="password_cuenta">
         </label>
         <button type="submit">Crear suscripción</button>
       </form>

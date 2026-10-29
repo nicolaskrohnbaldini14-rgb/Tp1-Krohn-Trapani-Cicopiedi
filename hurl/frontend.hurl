@@ -8,7 +8,8 @@ header "Content-Type" contains "text/html"
 xpath "string(//body/@data-pagina)" == "inicio"
 xpath "count(//a[@href='login.html'])" >= 1
 xpath "count(//a[@href='registro.html'])" >= 1
-xpath "count(//a[@href='registro.html?tipo=empresa'])" == 1
+# ya no hay registro de empresas
+xpath "count(//a[@href='registro.html?tipo=empresa'])" == 0
 xpath "count(//nav//ul[@id='menu-servicios'])" == 1
 xpath "count(//ul[@id='catalogo'])" == 0
 # en el inicio no está el formulario de servicios
@@ -45,12 +46,14 @@ HTTP 200
 xpath "count(//form[@id='form-suscripcion'])" == 1
 # el usuario lo toma el servidor de la sesión
 xpath "count(//select[@name='id_usuario'])" == 0
+# se crea siempre activa y las credenciales de la cuenta son opcionales
+xpath "count(//select[@name='estado'])" == 0
+xpath "count(//input[@name='usuario_cuenta'][@required])" == 0
+xpath "count(//input[@name='password_cuenta'][@required])" == 0
 
+# el panel de empresas ya no existe
 GET {{host}}/empresa.html
-HTTP 200
-[Asserts]
-xpath "count(//form[@id='form-servicio'])" == 1
-xpath "count(//ul[@id='lista-servicios'])" == 1
+HTTP 404
 
 GET {{host}}/app.js
 HTTP 200

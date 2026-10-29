@@ -4,8 +4,6 @@ CREATE TABLE usuario (
     nombre VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    -- 'consumidor' gestiona sus suscripciones, 'empresa' administra el catálogo de servicios
-    tipo VARCHAR(20) NOT NULL DEFAULT 'consumidor' CHECK (tipo IN ('consumidor', 'empresa')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 --tabla de suscipciones 
@@ -16,8 +14,10 @@ CREATE TABLE suscripcion (
     monto DECIMAL(10, 2) NOT NULL,
     fecha_vencimiento DATE NOT NULL,
     fecha_inicio DATE NOT NULL,
-    usuario_cuenta  VARCHAR(255) NOT NULL,
-    password_cuenta VARCHAR(255) NOT NULL,
+    -- credenciales de la cuenta del servicio: opcionales (un gimnasio o una
+    -- cancha de pádel, por ejemplo, no tienen usuario ni contraseña)
+    usuario_cuenta  VARCHAR(255),
+    password_cuenta VARCHAR(255),
     estado VARCHAR(20) NOT NULL DEFAULT 'Activa' ,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

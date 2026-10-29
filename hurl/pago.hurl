@@ -1,37 +1,8 @@
-# 1. Una empresa publica el servicio
-POST {{host}}/usuarios
-Content-Type: application/json
-{
-  "nombre": "Empresa Pagos",
-  "email": "empresapagos_{{newUuid}}@test.com",
-  "password": "secreto123",
-  "tipo": "empresa"
-}
-HTTP 201
-[Captures]
-empresa_id: jsonpath "$.id_usuario"
-empresa_email: jsonpath "$.email"
-[Asserts]
-jsonpath "$.tipo" == "empresa"
-
-# --- login como empresa ---
-POST {{host}}/sesion
-Content-Type: application/json
-{
-  "email": "{{empresa_email}}",
-  "password": "secreto123"
-}
+# 1. Servicio del catálogo precargado
+GET {{host}}/servicios
 HTTP 200
-
-POST {{host}}/servicios
-Content-Type: application/json
-{
-  "nombre": "ServicioPago-{{newUuid}}",
-  "categoria": "Streaming"
-}
-HTTP 201
 [Captures]
-servicio_id: jsonpath "$.id_servicio"
+servicio_id: jsonpath "$[?(@.nombre=='HBO Max')].id_servicio" nth 0
 
 # 2. Consumidor con sesión iniciada
 POST {{host}}/usuarios
@@ -39,15 +10,12 @@ Content-Type: application/json
 {
   "nombre": "Usuario Pagador",
   "email": "pago_{{newUuid}}@test.com",
-  "password": "secreto123",
-  "tipo": "consumidor"
+  "password": "secreto123"
 }
 HTTP 201
 [Captures]
 usuario_id: jsonpath "$.id_usuario"
 usuario_email: jsonpath "$.email"
-[Asserts]
-jsonpath "$.tipo" == "consumidor"
 
 # --- login como consumidor ---
 POST {{host}}/sesion
@@ -225,15 +193,12 @@ Content-Type: application/json
 {
   "nombre": "Otro Pagador",
   "email": "otropago_{{newUuid}}@test.com",
-  "password": "secreto123",
-  "tipo": "consumidor"
+  "password": "secreto123"
 }
 HTTP 201
 [Captures]
 otro_id: jsonpath "$.id_usuario"
 otro_email: jsonpath "$.email"
-[Asserts]
-jsonpath "$.tipo" == "consumidor"
 
 # --- login como otro consumidor ---
 POST {{host}}/sesion
@@ -342,19 +307,4 @@ Content-Type: application/json
 HTTP 200
 
 DELETE {{host}}/usuarios/{{otro_id}}
-HTTP 204
-
-# --- la empresa borra el servicio y su cuenta ---
-POST {{host}}/sesion
-Content-Type: application/json
-{
-  "email": "{{empresa_email}}",
-  "password": "secreto123"
-}
-HTTP 200
-
-DELETE {{host}}/servicios/{{servicio_id}}
-HTTP 204
-
-DELETE {{host}}/usuarios/{{empresa_id}}
 HTTP 204

@@ -33,9 +33,10 @@ make run-app
    tanto la API REST como el frontend.
 3. **Tareas posteriores:** al detenerlo con `Ctrl+C` borra los contenedores y volúmenes.
 
-La base arranca vacía. Para probarla: registrar una empresa desde el link
-*"¿Sos una empresa? Registrá tu empresa"* del pie de página y crear algunos
-servicios, cerrar sesión, registrarse como consumidor y crear suscripciones.
+Al iniciar, la aplicación precarga el catálogo de servicios (ver
+[Catálogo de servicios](#catálogo-de-servicios)). Para probarla: registrarse,
+crear suscripciones eligiendo un servicio del catálogo y cambiarles el estado
+desde la lista.
 
 ## Ejecutar pruebas (tests de sqlc + pruebas Hurl de la API)
 ```bash
@@ -55,17 +56,15 @@ La aplicación está separada en páginas según quién la usa:
 |---|---|---|
 | `index.html` (`/`) | Todos | Portada centrada con el título, el lema y los botones **Iniciar sesión** y **Registrarse**. |
 | `login.html` | Todos | Inicio de sesión. |
-| `registro.html` | Todos | Registro de consumidores. Con `?tipo=empresa` registra empresas (link al pie de página). |
-| `cuenta.html` | Consumidores | *"Hola, {nombre}"*, resumen del gasto y dos opciones: ver las suscripciones o crear una nueva. |
-| `suscripciones.html` | Consumidores | Lista de sus suscripciones con el gasto mensual activo y botón para eliminar. |
-| `nueva-suscripcion.html` | Consumidores | Formulario de alta de suscripción. |
-| `empresa.html` | Empresas | Alta y baja de servicios del catálogo. |
+| `registro.html` | Todos | Registro de usuarios. |
+| `cuenta.html` | Con sesión | *"Hola, {nombre}"*, resumen del gasto y dos opciones: ver las suscripciones o crear una nueva. |
+| `suscripciones.html` | Con sesión | Lista de sus suscripciones con el gasto mensual activo, un selector para pausarlas, cancelarlas o reactivarlas y botón para eliminar. |
+| `nueva-suscripcion.html` | Con sesión | Formulario de alta: servicio del catálogo (agrupado por categoría), monto y fechas; usuario y contraseña de la cuenta son opcionales. La suscripción se crea siempre **Activa**. |
 
 Todas las páginas tienen en la barra superior el menú **Servicios ▾**: al
 pasar el cursor (o tocarlo en el celular) se despliega el catálogo de
-servicios disponibles para suscribirse, de solo lectura. Lo completa `app.js`
-con `GET /servicios`; los servicios los crean y borran solo las empresas
-desde su panel.
+servicios disponibles para suscribirse, agrupado por categoría y de solo
+lectura. Lo completa `app.js` con `GET /servicios`.
 
 Todas las páginas comparten [`static/app.js`](static/app.js) y
 [`static/styles.css`](static/styles.css). Cada una se identifica con
@@ -76,14 +75,17 @@ Funcionamiento de `app.js`:
 - **Sesión:** al cargar cualquier página pide `GET /sesion`. Según la
   respuesta arma la barra de navegación (*Servicios ▾ / Iniciar sesión /
   Registrarse* o *Servicios ▾ / … / Hola, {nombre} / Cerrar sesión*). Las páginas privadas redirigen al login
-  si no hay sesión, o a la sección que corresponde si la cuenta es de otro tipo.
+  si no hay sesión.
 - **Carga de datos:** cada página hace su `fetch` al cargar
   (`GET /servicios`, `GET /suscripciones/usuario/{id}`) y genera
   dinámicamente un `<li>` por entidad, con un botón **Eliminar** donde corresponde.
 - **Alta:** los formularios tienen un listener de `submit` que hace
   `preventDefault()`, arma el JSON con los datos de los inputs y envía un
-  `POST`. Al crear un servicio se vuelve a pedir la lista completa; al crear
-  una suscripción se pasa a la lista de suscripciones, que se carga de nuevo.
+  `POST`. Al crear una suscripción se pasa a la lista de suscripciones, que
+  vuelve a pedir la lista completa.
+- **Cambio de estado:** cada suscripción de la lista tiene un selector
+  (*Activa / Pausada / Cancelada*). Con delegación de eventos, un listener de
+  `change` sobre la lista hace el `PUT` y refresca la vista.
 - **Borrado con delegación de eventos:** como los botones se crean
   dinámicamente, hay un único listener de `click` sobre cada lista que detecta
   el botón presionado, toma el ID desde `data-id` y hace el `DELETE`. Tras un
@@ -96,7 +98,7 @@ Funcionamiento de `app.js`:
   permisos los controla la API: ocultar un botón en la página no alcanza.
 
 Los estilos usan **Flexbox** (barra, formularios y listas) y **CSS Grid**
-(opciones de la cuenta y panel de empresas), con la paleta de la
+(opciones de la cuenta y formulario de alta), con la paleta de la
 primera entrega: azul acero `#567c8d`, azul petróleo `#002f44`/`#004b6e` y
 crema `#ece6d4`.
 
@@ -109,9 +111,9 @@ El modelo de datos está compuesto por 4 tablas relacionales, definidas en
 
 | Tabla | Descripción |
 |---|---|
-| `usuario` | Cuenta de la persona o empresa que usa la app (nombre, email, contraseña hasheada con bcrypt y `tipo`: `consumidor` o `empresa`). |
-| `servicio` | Catálogo de servicios disponibles (nombre + categoría), normalizado para poder agrupar el gasto por categoría. |
-| `suscripcion` | Relaciona un `usuario` con un `servicio`: monto, fecha de inicio, fecha de vencimiento, credenciales de acceso al servicio (usuario/contraseña de esa cuenta) y estado (activa/pausada/cancelada). |
+| `usuario` | Cuenta de la persona que usa la app (nombre, email y contraseña hasheada con bcrypt). |
+| `servicio` | Catálogo de servicios disponibles (nombre + categoría), normalizado para poder agrupar el gasto por categoría. Se precarga al iniciar la app. |
+| `suscripcion` | Relaciona un `usuario` con un `servicio`: monto, fecha de inicio, fecha de vencimiento, credenciales de acceso al servicio (usuario/contraseña de esa cuenta, **opcionales**: pueden ser `NULL`) y estado (activa/pausada/cancelada). |
 | `pago` | Historial real de cobros de una suscripción. Permite calcular el gasto efectivo mes a mes, no solo el proyectado. |
 
 **Relaciones:**
@@ -166,9 +168,9 @@ correspondiente.
 | Recurso | Público | Requiere sesión |
 |---|---|---|
 | Usuarios | `GET`, `POST /usuarios` (registro) | `PUT`/`DELETE`: solo la propia cuenta (`403` si es otra) |
-| Servicios | `GET` (catálogo) | `POST`/`PUT`/`DELETE`: solo **empresas** (`403` para consumidores) |
-| Suscripciones | — | Solo **consumidores**. Se crean a nombre del usuario de la sesión y cada uno ve y modifica solo las suyas (`404` si son de otro) |
-| Pagos | — | Solo **consumidores**, sobre sus propias suscripciones (`404` si son de otro) |
+| Servicios | `GET` (catálogo precargado) | — (no se pueden crear, modificar ni borrar: `405`) |
+| Suscripciones | — | Se crean a nombre del usuario de la sesión y cada uno ve y modifica solo las suyas (`404` si son de otro) |
+| Pagos | — | Solo sobre las propias suscripciones (`404` si son de otro) |
 
 Sin sesión, las rutas protegidas responden `401`.
 
@@ -183,24 +185,37 @@ Sin sesión, las rutas protegidas responden `401`.
 | `DELETE` | `/usuarios/{id}` | `204` · `404` |
 
 ```json
-{ "nombre": "Nico", "email": "nico@example.com", "password": "secreto", "tipo": "consumidor" }
+{ "nombre": "Nico", "email": "nico@example.com", "password": "secreto" }
 ```
-
-`tipo` es `consumidor` (por defecto) o `empresa`.
 
 ### Servicios
 
 | Método | Ruta | Respuestas |
 |---|---|---|
-| `POST` | `/servicios` | `201` · `400` datos o categoría inválidos · `409` nombre repetido |
-| `GET` | `/servicios` | `200` lista de servicios |
-| `GET` | `/servicios/{id}` | `200` · `400` · `404` |
-| `PUT` | `/servicios/{id}` | `200` · `400` · `404` · `409` nombre repetido |
-| `DELETE` | `/servicios/{id}` | `204` · `404` · `409` tiene suscripciones asociadas |
+| `GET` | `/servicios` | `200` catálogo completo |
+| `GET` | `/servicios/{id}` | `200` · `400` ID no numérico · `404` no encontrado |
+| `POST` / `PUT` / `PATCH` / `DELETE` | `/servicios`, `/servicios/{id}` | `405` el catálogo viene precargado |
 
-```json
-{ "nombre": "Netflix", "categoria": "Streaming" }
-```
+### Catálogo de servicios
+
+Al iniciar, `main.go` llama a `CargarCatalogoInicial` (`logic/servicio.go`),
+que inserta con la query `CrearServicioSiNoExiste`
+(`INSERT ... ON CONFLICT (nombre) DO NOTHING`) los servicios que todavía no
+existan. Se puede ejecutar en cada arranque sin duplicar nada.
+
+| Categoría | Servicios |
+|---|---|
+| Streaming | Netflix, HBO Max, Disney+, Prime Video, Paramount+, Star+, YouTube Premium |
+| Música | Spotify, iTunes, YouTube Music, Deezer, Tidal |
+| Software | Microsoft 365, Google One, iCloud+, Adobe Creative Cloud, ChatGPT Plus, Canva Pro, Dropbox |
+| Deportes | Gimnasio, Pádel, Fútbol, Tenis, Natación, Yoga, Crossfit, Club deportivo |
+| Salud | OSDE, Swiss Medical, Galeno, Medifé, Sancor Salud, Omint |
+| Financiero | Seguro de auto, Seguro de hogar, Seguro de vida, Mantenimiento de cuenta bancaria, Cuota de préstamo |
+| Turismo | Aerolíneas Plus, Despegar, Booking.com, Airbnb |
+| Otros | Internet hogar, Telefonía celular, Mercado Libre Meli+, Rappi Pro, PedidosYa Plus |
+
+La categoría que antes era *Gimnasio* ahora es **Deportes**, para poder
+registrar gimnasio, pádel, fútbol, etc.
 
 ### Suscripciones
 
@@ -212,18 +227,21 @@ Sin sesión, las rutas protegidas responden `401`.
 | `PUT` | `/suscripciones/{id}` | `200` · `400` · `404` · `409` |
 | `DELETE` | `/suscripciones/{id}` | `204` · `404` |
 
-`id_usuario` es opcional: si no se envía se usa el de la sesión.
+- `id_usuario` es opcional: si no se envía se usa el de la sesión.
+- `usuario_cuenta` y `password_cuenta` son opcionales (por ejemplo, una
+  cancha de pádel no tiene cuenta); si no se envían o vienen vacíos quedan en
+  `null`. En un `PUT`, si no se envía `password_cuenta` se conserva la guardada.
+- `estado` es opcional al crear y, si se envía, tiene que ser `Activa`:
+  pausar o cancelar es un cambio posterior (`PUT`).
 
 ```json
 {
-  "id_usuario": 1,
   "id_servicio": 1,
   "monto": "2500.00",
   "fecha_inicio": "2026-01-01T00:00:00Z",
   "fecha_vencimiento": "2026-12-31T00:00:00Z",
   "usuario_cuenta": "nico@example.com",
-  "password_cuenta": "passcuenta123",
-  "estado": "Activa"
+  "password_cuenta": "passcuenta123"
 }
 ```
 
@@ -244,12 +262,13 @@ Sin sesión, las rutas protegidas responden `401`.
 # Reglas de negocio
 
 - **Usuarios:** nombre, email y password son obligatorios. El email tiene que tener un formato válido y no puede repetirse. La password se guarda hasheada y nunca se devuelve en las respuestas.
-- **Acceso:** solo las empresas crean, modifican y borran servicios; solo los consumidores crean suscripciones y pagos, y cada uno ve y modifica únicamente los suyos.
-- **Servicios:** el nombre es único. La categoría debe ser una de `Streaming`, `Música`, `Software`, `Gimnasio`, `Salud`, `Financiero`, `Turismo` u `Otros`, y no se puede cambiar después de creado. No se puede borrar un servicio que tenga suscripciones.
+- **Acceso:** cada usuario ve y modifica únicamente sus propias suscripciones y pagos.
+- **Servicios:** el catálogo viene precargado y es de solo lectura. Las categorías son `Streaming`, `Música`, `Software`, `Deportes`, `Salud`, `Financiero`, `Turismo` y `Otros`.
 - **Suscripciones:**
   - El usuario y el servicio tienen que existir.
   - El monto tiene que ser mayor a cero y la fecha de inicio anterior a la de vencimiento.
-  - El estado es `Activa` (por defecto), `Pausada` o `Cancelada`.
+  - Se crean siempre en estado `Activa`; después se pueden pasar a `Pausada` o `Cancelada` (y reactivar).
+  - Usuario y contraseña de la cuenta del servicio son opcionales.
   - Un usuario no puede tener dos suscripciones activas al mismo servicio.
   - La `password_cuenta` nunca se devuelve en las respuestas.
 - **Pagos:** la suscripción tiene que existir, el monto tiene que ser mayor a cero y la fecha de pago no puede ser posterior al vencimiento de la suscripción.
@@ -264,8 +283,8 @@ de las acciones protegidas.
 |---|---|
 | `frontend.hurl` | Que se sirvan las páginas, que el inicio tenga los links a login y registro y el menú de servicios en la barra, y que no tenga el alta de servicios. |
 | `usuario.hurl` | Registro, login correcto e incorrecto, `GET /sesion`, CRUD de la propia cuenta, `403` sobre cuentas ajenas y cierre de sesión. |
-| `servicio.hurl` | CRUD de servicios como empresa, `401` sin sesión y `403` para consumidores. |
-| `suscripcion.hurl` | CRUD de suscripciones como consumidor, `403` para empresas, `404` sobre suscripciones ajenas y `401` sin sesión. |
+| `servicio.hurl` | Catálogo precargado (servicios y categorías, incluida Deportes) y `405` al intentar crear, modificar o borrar servicios. |
+| `suscripcion.hurl` | CRUD de suscripciones, alta sin credenciales, `400` al crearlas pausadas o canceladas, `404` sobre suscripciones ajenas y `401` sin sesión. |
 | `pago.hurl` | Pagos sobre suscripciones propias, `404` sobre pagos ajenos y `401` sin sesión. |
 
 # Estructura del proyecto
@@ -281,7 +300,6 @@ de las acciones protegidas.
 │   ├── cuenta.html       # "Hola, {nombre}" (consumidores)
 │   ├── suscripciones.html
 │   ├── nueva-suscripcion.html
-│   ├── empresa.html      # Panel de servicios (empresas)
 │   ├── app.js            # Lógica de todas las páginas
 │   └── styles.css
 ├── logic/                # Lógica de negocio y handlers HTTP de cada entidad

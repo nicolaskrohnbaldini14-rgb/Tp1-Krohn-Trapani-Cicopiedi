@@ -46,21 +46,35 @@ func validarCamposSuscripcion(datos sqlc.CreateSubscripcionParams) error {
 	if !datos.FechaInicio.Before(datos.FechaVencimiento) {
 		return fmt.Errorf("la fecha de inicio debe ser anterior a la fecha de vencimiento")
 	}
-	if strings.TrimSpace(datos.UsuarioCuenta) == "" || strings.TrimSpace(datos.PasswordCuenta) == "" {
-		return fmt.Errorf("las credenciales de la cuenta (usuario_cuenta y password_cuenta) son obligatorias")
-	}
 
+	// una suscripción nueva siempre arranca activa; pausarla o cancelarla
+	// es una modificación posterior (PUT)
 	est := strings.TrimSpace(datos.Estado)
 	if est != "" && !estadosValidos[est] {
 		return fmt.Errorf("el estado '%s' no es válido (permitidos: Activa, Pausada, Cancelada)", est)
+	}
+	if est != "" && est != "Activa" {
+		return fmt.Errorf("una suscripción nueva se crea siempre en estado Activa")
 	}
 
 	return nil
 }
 
+// textoOpcional limpia un texto opcional: si queda vacío se guarda como NULL
+func textoOpcional(valor *string) *string {
+	if valor == nil {
+		return nil
+	}
+	limpio := strings.TrimSpace(*valor)
+	if limpio == "" {
+		return nil
+	}
+	return &limpio
+}
+
 // ocultarPasswordCuenta evita devolver la contraseña de la cuenta al cliente
 func ocultarPasswordCuenta(sub sqlc.Suscripcion) sqlc.Suscripcion {
-	sub.PasswordCuenta = ""
+	sub.PasswordCuenta = nil
 	return sub
 }
 
@@ -83,6 +97,10 @@ func (s *ServicioSuscripcion) Crear(ctx context.Context, entrada sqlc.CreateSubs
 	if err := validarCamposSuscripcion(entrada); err != nil {
 		return sqlc.Suscripcion{}, err
 	}
+
+	// usuario y contraseña de la cuenta del servicio son opcionales
+	entrada.UsuarioCuenta = textoOpcional(entrada.UsuarioCuenta)
+	entrada.PasswordCuenta = textoOpcional(entrada.PasswordCuenta)
 
 	// 1. Verificar que el usuario exista
 	_, err := s.consultas.GetUsuario(ctx, entrada.IDUsuario)
@@ -149,10 +167,6 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 	if entrada.FechaVencimiento.IsZero() {
 		return sqlc.Suscripcion{}, fmt.Errorf("la fecha de vencimiento es obligatoria")
 	}
-	if strings.TrimSpace(entrada.UsuarioCuenta) == "" || strings.TrimSpace(entrada.PasswordCuenta) == "" {
-		return sqlc.Suscripcion{}, fmt.Errorf("las credenciales de la cuenta son obligatorias")
-	}
-
 	// 2. Validar que el estado sea uno de los permitidos
 	est := strings.TrimSpace(entrada.Estado)
 	if !estadosValidos[est] {
@@ -187,6 +201,14 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 	entrada.IDSuscripcion = id // el id siempre viene de la URL
 	entrada.Monto = fmt.Sprintf("%.2f", monto)
 	entrada.Estado = est
+
+	// las credenciales son opcionales; como la contraseña nunca se devuelve,
+	// si no se envía una nueva se conserva la que estaba guardada
+	entrada.UsuarioCuenta = textoOpcional(entrada.UsuarioCuenta)
+	entrada.PasswordCuenta = textoOpcional(entrada.PasswordCuenta)
+	if entrada.PasswordCuenta == nil {
+		entrada.PasswordCuenta = subExistente.PasswordCuenta
+	}
 
 	// 7. Actualizar en la base de datos vía sqlc
 	if err := s.consultas.UpdateSubscripcion(ctx, entrada); err != nil {
@@ -396,7 +418,7 @@ func (h *ManejadorSuscripcion) responderError(w http.ResponseWriter, err error) 
 	switch {
 	case strings.Contains(msg, "no encontrada") || strings.Contains(msg, "no existe"):
 		http.Error(w, msg, http.StatusNotFound)
-	case strings.Contains(msg, "obligatoria") || strings.Contains(msg, "mayor a cero") || strings.Contains(msg, "anterior") || strings.Contains(msg, "válido"):
+	case strings.Contains(msg, "obligatoria") || strings.Contains(msg, "mayor a cero") || strings.Contains(msg, "anterior") || strings.Contains(msg, "válido") || strings.Contains(msg, "siempre en estado"):
 		http.Error(w, msg, http.StatusBadRequest)
 	case strings.Contains(msg, "activa"):
 		http.Error(w, msg, http.StatusConflict)
