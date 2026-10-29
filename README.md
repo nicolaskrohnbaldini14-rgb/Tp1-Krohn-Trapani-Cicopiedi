@@ -92,6 +92,13 @@ Funcionamiento de `app.js`:
   a domingo, con el día de hoy recuadrado). Los días con vencimientos tienen un
   pin y, al pasar el cursor o enfocarlos con el teclado, muestran un cartel con
   los servicios que vencen ese día, su monto y si están pausados o cancelados.
+- **Detalle de una suscripción:** en la lista solo se ve el servicio, su
+  categoría y el monto. Al tocar una suscripción se abre un `<dialog>` (con el
+  fondo desenfocado y efecto de zoom) con la cuenta, la fecha de inicio, el
+  vencimiento y el estado. La contraseña de la cuenta aparece oculta: para
+  verla hay que confirmar la contraseña del usuario de Suscripciones+
+  (`POST /suscripciones/{id}/password`). Se cierra con la ×, con Escape o
+  tocando el fondo, y al cerrarse la contraseña vuelve a ocultarse.
 - **Cambio de estado:** cada suscripción de la lista tiene un selector
   (*Activa / Pausada / Cancelada*). Con delegación de eventos, un listener de
   `change` sobre la lista hace el `PUT` y refresca la vista.
@@ -235,11 +242,15 @@ registrar gimnasio, pádel, fútbol, etc.
 | `GET` | `/suscripciones/usuario/{id_usuario}` | `200` suscripciones del usuario · `403` si es otro usuario |
 | `PUT` | `/suscripciones/{id}` | `200` · `400` · `404` · `409` |
 | `DELETE` | `/suscripciones/{id}` | `204` · `404` |
+| `POST` | `/suscripciones/{id}/password` | `200` `{"password_cuenta": "..."}` (o `null` si no tiene) · `403` contraseña del usuario incorrecta · `404` si no existe o es de otro usuario |
 
 - `id_usuario` es opcional: si no se envía se usa el de la sesión.
 - `usuario_cuenta` y `password_cuenta` son opcionales (por ejemplo, una
   cancha de pádel no tiene cuenta); si no se envían o vienen vacíos quedan en
   `null`. En un `PUT`, si no se envía `password_cuenta` se conserva la guardada.
+- `password_cuenta` nunca viene en las respuestas. Para verla se usa
+  `POST /suscripciones/{id}/password` con `{"password": "<contraseña del usuario>"}`:
+  se confirma con bcrypt que la contraseña sea la del usuario de la sesión.
 - `estado` es opcional al crear y, si se envía, tiene que ser `Activa`:
   pausar o cancelar es un cambio posterior (`PUT`).
 

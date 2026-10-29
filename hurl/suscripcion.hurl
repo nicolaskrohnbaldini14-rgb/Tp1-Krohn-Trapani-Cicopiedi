@@ -221,9 +221,21 @@ Content-Type: application/json
   "fecha_vencimiento": "2026-12-31T00:00:00Z"
 }
 HTTP 201
+[Captures]
+padel_sub_id: jsonpath "$.id_suscripcion"
 [Asserts]
 jsonpath "$.estado" == "Activa"
 jsonpath "$.usuario_cuenta" == null
+jsonpath "$.password_cuenta" == null
+
+# al pedir la contraseña de una suscripción sin cuenta, viene null
+POST {{host}}/suscripciones/{{padel_sub_id}}/password
+Content-Type: application/json
+{
+  "password": "secreto123"
+}
+HTTP 200
+[Asserts]
 jsonpath "$.password_cuenta" == null
 
 
@@ -343,6 +355,45 @@ HTTP 200
 [Asserts]
 jsonpath "$.estado" == "Pausada"
 jsonpath "$.monto" == "1999.50"
+
+
+# ---------- 17b. Ver la contraseña de la cuenta confirmando la del usuario ----------
+# con la contraseña del usuario equivocada no se muestra (403)
+POST {{host}}/suscripciones/{{sub_id}}/password
+Content-Type: application/json
+{
+  "password": "incorrecta"
+}
+HTTP 403
+[Asserts]
+body contains "no es correcta"
+
+# con la contraseña correcta se devuelve la guardada (200)
+POST {{host}}/suscripciones/{{sub_id}}/password
+Content-Type: application/json
+{
+  "password": "secreto123"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.password_cuenta" == "nuevaclave"
+
+POST {{host}}/suscripciones/999999/password
+Content-Type: application/json
+{
+  "password": "secreto123"
+}
+HTTP 404
+
+POST {{host}}/suscripciones/abc/password
+Content-Type: application/json
+{
+  "password": "secreto123"
+}
+HTTP 400
+
+GET {{host}}/suscripciones/{{sub_id}}/password
+HTTP 405
 
 
 # ---------- 18. Actualizar con estado invalido (400) ----------
@@ -513,6 +564,14 @@ HTTP 404
 GET {{host}}/suscripciones/usuario/{{usuario_id}}
 HTTP 403
 
+# tampoco puede ver la contraseña de la cuenta, aunque confirme la suya (404)
+POST {{host}}/suscripciones/{{sub_id}}/password
+Content-Type: application/json
+{
+  "password": "secreto123"
+}
+HTTP 404
+
 # sin sesión (401)
 DELETE {{host}}/sesion
 HTTP 204
@@ -521,6 +580,13 @@ GET {{host}}/suscripciones/{{sub_id}}
 HTTP 401
 
 GET {{host}}/suscripciones/usuario/{{usuario_id}}
+HTTP 401
+
+POST {{host}}/suscripciones/{{sub_id}}/password
+Content-Type: application/json
+{
+  "password": "secreto123"
+}
 HTTP 401
 
 # --- vuelvo al dueño de las suscripciones ---

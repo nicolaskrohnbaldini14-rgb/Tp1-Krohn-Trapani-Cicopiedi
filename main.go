@@ -63,9 +63,9 @@ func main() {
 	http.HandleFunc("/servicios", manejadorServicio.ManejarServicios)      // GET (catálogo precargado, solo lectura)
 	http.HandleFunc("/servicios/", manejadorServicio.ManejarServicioPorID) // GET
 
-	http.HandleFunc("/suscripciones", proteger([]string{post}, manejadorSuscripcion.ManejarSuscripciones))                   // POST
-	http.HandleFunc("/suscripciones/", proteger([]string{get, put, del}, manejadorSuscripcion.ManejarSuscripcionPorID))      // GET, PUT, DELETE (propias)
-	http.HandleFunc("/suscripciones/usuario/", proteger([]string{get}, manejadorSuscripcion.ManejarSuscripcionesPorUsuario)) // GET (propias)
+	http.HandleFunc("/suscripciones", proteger([]string{post}, manejadorSuscripcion.ManejarSuscripciones))                    // POST
+	http.HandleFunc("/suscripciones/", proteger([]string{get, post, put, del}, manejadorSuscripcion.ManejarSuscripcionPorID)) // GET, PUT, DELETE y POST .../password (propias)
+	http.HandleFunc("/suscripciones/usuario/", proteger([]string{get}, manejadorSuscripcion.ManejarSuscripcionesPorUsuario))  // GET (propias)
 
 	http.HandleFunc("/pagos", proteger([]string{post}, manejadorPago.ManejarPagos))                           // POST
 	http.HandleFunc("/pagos/", proteger([]string{get, del}, manejadorPago.ManejarPagoPorID))                  // GET, DELETE (propios)

@@ -43,6 +43,9 @@ xpath "count(//ul[@id='lista-suscripciones'])" == 1
 xpath "count(//a[@id='mes-siguiente'])" == 1
 xpath "count(//a[@id='mes-anterior'])" == 1
 xpath "count(//aside//div[@id='calendario'])" == 1
+# el detalle de cada suscripción se abre en un <dialog>
+xpath "count(//dialog[@id='detalle'])" == 1
+xpath "count(//dialog//form[@id='form-confirmar']//input[@type='password'])" == 1
 
 GET {{host}}/nueva-suscripcion.html
 HTTP 200

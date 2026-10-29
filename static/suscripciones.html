@@ -50,6 +50,44 @@
         <p class="calendario-ayuda">Pasá el cursor por un día marcado para ver qué vence.</p>
       </aside>
     </div>
+
+    <!-- detalle de una suscripción: se abre al tocarla en la lista -->
+    <dialog id="detalle" class="detalle" aria-labelledby="detalle-titulo">
+      <div class="detalle-contenido">
+      <button type="button" id="detalle-cerrar" class="detalle-cerrar" aria-label="Cerrar">×</button>
+      <span id="detalle-categoria" class="etiqueta"></span>
+      <h2 id="detalle-titulo"></h2>
+      <p id="detalle-monto" class="detalle-monto"></p>
+
+      <dl class="detalle-datos">
+        <dt>Estado</dt>
+        <dd id="detalle-estado"></dd>
+        <dt>Cuenta</dt>
+        <dd id="detalle-cuenta"></dd>
+        <dt>Inicio</dt>
+        <dd id="detalle-inicio"></dd>
+        <dt>Vencimiento</dt>
+        <dd id="detalle-vencimiento"></dd>
+        <dt>Contraseña</dt>
+        <dd>
+          <span id="detalle-password">••••••••</span>
+          <button type="button" id="detalle-mostrar" class="boton-chico">Mostrar</button>
+        </dd>
+      </dl>
+
+      <!-- para ver la contraseña de la cuenta se pide la del usuario -->
+      <form id="form-confirmar" class="formulario confirmar" hidden>
+        <label>Para ver la contraseña, confirmá la contraseña de tu usuario de Suscripciones+
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p id="detalle-error" class="detalle-error" role="alert" hidden></p>
+        <div class="acciones-confirmar">
+          <button type="button" id="cancelar-confirmar" class="boton-secundario">Cancelar</button>
+          <button type="submit">Mostrar contraseña</button>
+        </div>
+      </form>
+      </div>
+    </dialog>
   </main>
 
   <footer class="pie">

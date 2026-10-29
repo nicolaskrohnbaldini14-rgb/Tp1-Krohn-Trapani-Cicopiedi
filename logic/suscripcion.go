@@ -9,8 +9,14 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
+
+// ErrPasswordUsuario se devuelve cuando, para ver la contraseña de la cuenta
+// de un servicio, el usuario no confirma bien su propia contraseña
+var ErrPasswordUsuario = fmt.Errorf("la contraseña de tu usuario no es correcta")
 
 // Estados permitidos según las reglas de negocio
 var estadosValidos = map[string]bool{
@@ -229,6 +235,27 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 	}, nil
 }
 
+// RevelarPasswordCuenta devuelve la contraseña guardada de la cuenta del
+// servicio (o nil si no tiene) solo si la suscripción es del usuario y este
+// confirma su propia contraseña de Suscripciones+.
+func (s *ServicioSuscripcion) RevelarPasswordCuenta(ctx context.Context, id, idUsuario int32, passwordUsuario string) (*string, error) {
+	usr, err := s.consultas.GetUsuario(ctx, idUsuario)
+	if err != nil {
+		return nil, err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(usr.Password), []byte(passwordUsuario)) != nil {
+		return nil, ErrPasswordUsuario
+	}
+
+	sub, err := s.consultas.GetSubscripcion(ctx, id)
+	if err == sql.ErrNoRows || (err == nil && sub.IDUsuario != idUsuario) {
+		return nil, fmt.Errorf("suscripción no encontrada")
+	} else if err != nil {
+		return nil, err
+	}
+	return sub.PasswordCuenta, nil
+}
+
 // PerteneceA indica si la suscripción existe y es del usuario indicado
 func (s *ServicioSuscripcion) PerteneceA(ctx context.Context, id, idUsuario int32) (bool, error) {
 	sub, err := s.consultas.GetSubscripcion(ctx, id)
@@ -272,6 +299,12 @@ func (h *ManejadorSuscripcion) ManejarSuscripciones(w http.ResponseWriter, r *ht
 
 // ManejarSuscripcionPorID atiende GET, PUT y DELETE en /suscripciones/{id}
 func (h *ManejadorSuscripcion) ManejarSuscripcionPorID(w http.ResponseWriter, r *http.Request) {
+	// POST /suscripciones/{id}/password muestra la contraseña de la cuenta
+	if strings.HasSuffix(r.URL.Path, "/password") {
+		h.revelarPassword(w, r)
+		return
+	}
+
 	id, ok := h.extraerID(w, r)
 	if !ok {
 		return
@@ -293,6 +326,48 @@ func (h *ManejadorSuscripcion) ManejarSuscripcionPorID(w http.ResponseWriter, r 
 	default:
 		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
 	}
+}
+
+type confirmacionPassword struct {
+	Password string `json:"password"`
+}
+
+type respuestaPassword struct {
+	PasswordCuenta *string `json:"password_cuenta"`
+}
+
+// revelarPassword atiende POST /suscripciones/{id}/password. El cuerpo trae la
+// contraseña del usuario de Suscripciones+ para confirmar que es él.
+func (h *ManejadorSuscripcion) revelarPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Método HTTP no permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	partes := strings.Split(strings.TrimSuffix(r.URL.Path, "/password"), "/")
+	idNum, err := strconv.Atoi(partes[len(partes)-1])
+	if err != nil {
+		http.Error(w, "El ID debe ser un valor numérico", http.StatusBadRequest)
+		return
+	}
+
+	var entrada confirmacionPassword
+	if err := json.NewDecoder(r.Body).Decode(&entrada); err != nil {
+		http.Error(w, "El formato JSON enviado no es válido", http.StatusBadRequest)
+		return
+	}
+
+	usr, _ := UsuarioDeContexto(r.Context())
+	password, err := h.servicio.RevelarPasswordCuenta(r.Context(), int32(idNum), usr.IDUsuario, entrada.Password)
+	if err == ErrPasswordUsuario {
+		// 403 y no 401: la sesión es válida, lo que falla es la confirmación
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	} else if err != nil {
+		h.responderError(w, err)
+		return
+	}
+	h.responderJSON(w, http.StatusOK, respuestaPassword{PasswordCuenta: password})
 }
 
 // esDelUsuario verifica que la suscripción sea del usuario de la sesión.

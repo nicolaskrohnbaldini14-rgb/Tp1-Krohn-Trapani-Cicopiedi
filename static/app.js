@@ -456,7 +456,24 @@ async function paginaSuscripciones(sesion) {
   });
 
   // Delegación de eventos: un solo listener en la lista atiende todos los botones
+  // el detalle se abre al tocar el item (o con Enter / espacio si tiene el foco)
+  const detalle = prepararDetalle();
+  function abrirDesde(evento) {
+    if (evento.target.closest(".btn-eliminar, .select-estado")) return false;
+    const item = evento.target.closest(".item-abrible");
+    if (!item) return false;
+    detalle.abrir(suscripciones.find((s) => String(s.id_suscripcion) === item.dataset.id));
+    return true;
+  }
+  lista.addEventListener("keydown", (evento) => {
+    if ((evento.key === "Enter" || evento.key === " ") && evento.target.matches(".item-abrible")) {
+      evento.preventDefault();
+      abrirDesde(evento);
+    }
+  });
+
   lista.addEventListener("click", async (evento) => {
+    if (abrirDesde(evento)) return;
     const boton = evento.target.closest(".btn-eliminar");
     if (!boton) return;
     try {
@@ -473,17 +490,19 @@ async function paginaSuscripciones(sesion) {
 
 // itemSuscripcion arma el <li> de una suscripción con su selector de estado
 // y el botón de eliminar
+// En la lista solo se ve el servicio, la categoría y el monto; la cuenta, las
+// fechas y la contraseña están en el detalle que se abre al tocar el item.
 function itemSuscripcion(s) {
-  const detalle = [s.servicio_categoria];
-  if (s.usuario_cuenta) detalle.push(`cuenta ${s.usuario_cuenta}`);
-  detalle.push(`desde el ${formatearFecha(s.fecha_inicio)}`);
-  detalle.push(`vence el ${formatearFecha(s.fecha_vencimiento)}`);
-
   const li = crearItem(
     `${s.servicio_nombre} — ${formatoPesos.format(Number(s.monto))}`,
-    detalle.join(" · "),
-    s.id_suscripcion
+    "Tocá para ver los detalles",
+    s.id_suscripcion,
+    s.servicio_categoria
   );
+  li.classList.add("item-abrible");
+  li.dataset.id = s.id_suscripcion;
+  li.tabIndex = 0;
+  li.setAttribute("aria-label", `Ver detalles de ${s.servicio_nombre}`);
 
   const select = document.createElement("select");
   select.className = "select-estado";
@@ -494,6 +513,80 @@ function itemSuscripcion(s) {
   }
   li.querySelector(".btn-eliminar").before(select);
   return li;
+}
+
+// prepararDetalle configura el <dialog> con el detalle de una suscripción.
+// La contraseña de la cuenta no viene en la lista: para verla se confirma la
+// contraseña del usuario con POST /suscripciones/{id}/password.
+function prepararDetalle() {
+  const dialogo = document.getElementById("detalle");
+  const campoPassword = document.getElementById("detalle-password");
+  const botonMostrar = document.getElementById("detalle-mostrar");
+  const form = document.getElementById("form-confirmar");
+  const error = document.getElementById("detalle-error");
+  let actual = null;
+
+  function ocultarPassword() {
+    campoPassword.textContent = "••••••••";
+    campoPassword.classList.remove("revelada");
+    botonMostrar.hidden = false;
+    form.hidden = true;
+    form.reset();
+    error.hidden = true;
+  }
+
+  function abrir(sub) {
+    actual = sub;
+    document.getElementById("detalle-categoria").textContent = sub.servicio_categoria;
+    document.getElementById("detalle-titulo").textContent = sub.servicio_nombre;
+    document.getElementById("detalle-monto").textContent = `${formatoPesos.format(Number(sub.monto))} por mes`;
+    document.getElementById("detalle-estado").textContent = sub.estado;
+    document.getElementById("detalle-cuenta").textContent = sub.usuario_cuenta ?? "Sin cuenta";
+    document.getElementById("detalle-inicio").textContent = formatearFecha(sub.fecha_inicio);
+    document.getElementById("detalle-vencimiento").textContent = formatearFecha(sub.fecha_vencimiento);
+    ocultarPassword();
+    dialogo.showModal();
+  }
+
+  botonMostrar.addEventListener("click", () => {
+    botonMostrar.hidden = true;
+    form.hidden = false;
+    form.elements.password.focus();
+  });
+
+  document.getElementById("cancelar-confirmar").addEventListener("click", ocultarPassword);
+
+  form.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    try {
+      const respuesta = await enviarJSON(`/suscripciones/${actual.id_suscripcion}/password`, "POST", {
+        password: form.elements.password.value,
+      });
+      form.hidden = true;
+      form.reset();
+      error.hidden = true;
+      if (respuesta.password_cuenta) {
+        campoPassword.textContent = respuesta.password_cuenta;
+        campoPassword.classList.add("revelada");
+      } else {
+        campoPassword.textContent = "No guardaste contraseña para esta suscripción";
+      }
+    } catch (e) {
+      error.textContent = e.message;
+      error.hidden = false;
+      form.elements.password.select();
+    }
+  });
+
+  // se cierra con la ×, con Escape o tocando el fondo desenfocado
+  document.getElementById("detalle-cerrar").addEventListener("click", () => dialogo.close());
+  dialogo.addEventListener("click", (evento) => {
+    if (evento.target === dialogo) dialogo.close();
+  });
+  // al cerrar no queda la contraseña a la vista
+  dialogo.addEventListener("close", ocultarPassword);
+
+  return { abrir };
 }
 
 async function paginaNuevaSuscripcion(sesion) {
