@@ -7,12 +7,16 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
 
-// Estados permitidos según las reglas de negocio
-var Estados = []string{"Activa", "Pausada", "Cancelada"}
+// ErrPasswordUsuario se devuelve cuando, para ver la contraseña de la cuenta
+// de un servicio, el usuario no confirma bien su propia contraseña
+var ErrPasswordUsuario = fmt.Errorf("la contraseña de tu usuario no es correcta")
 
+// Estados permitidos según las reglas de negocio
 var estadosValidos = map[string]bool{
 	"Activa":    true,
 	"Pausada":   true,
@@ -45,21 +49,35 @@ func validarCamposSuscripcion(datos sqlc.CreateSubscripcionParams) error {
 	if !datos.FechaInicio.Before(datos.FechaVencimiento) {
 		return fmt.Errorf("la fecha de inicio debe ser anterior a la fecha de vencimiento")
 	}
-	if strings.TrimSpace(datos.UsuarioCuenta) == "" || strings.TrimSpace(datos.PasswordCuenta) == "" {
-		return fmt.Errorf("las credenciales de la cuenta (usuario_cuenta y password_cuenta) son obligatorias")
-	}
 
+	// una suscripción nueva siempre arranca activa; pausarla o cancelarla
+	// es una modificación posterior (PUT)
 	est := strings.TrimSpace(datos.Estado)
 	if est != "" && !estadosValidos[est] {
 		return fmt.Errorf("el estado '%s' no es válido (permitidos: Activa, Pausada, Cancelada)", est)
+	}
+	if est != "" && est != "Activa" {
+		return fmt.Errorf("una suscripción nueva se crea siempre en estado Activa")
 	}
 
 	return nil
 }
 
+// textoOpcional limpia un texto opcional: si queda vacío se guarda como NULL
+func textoOpcional(valor *string) *string {
+	if valor == nil {
+		return nil
+	}
+	limpio := strings.TrimSpace(*valor)
+	if limpio == "" {
+		return nil
+	}
+	return &limpio
+}
+
 // ocultarPasswordCuenta evita devolver la contraseña de la cuenta al cliente
 func ocultarPasswordCuenta(sub sqlc.Suscripcion) sqlc.Suscripcion {
-	sub.PasswordCuenta = ""
+	sub.PasswordCuenta = nil
 	return sub
 }
 
@@ -83,6 +101,10 @@ func (s *ServicioSuscripcion) Crear(ctx context.Context, entrada sqlc.CreateSubs
 		return sqlc.Suscripcion{}, err
 	}
 
+	// usuario y contraseña de la cuenta del servicio son opcionales
+	entrada.UsuarioCuenta = textoOpcional(entrada.UsuarioCuenta)
+	entrada.PasswordCuenta = textoOpcional(entrada.PasswordCuenta)
+
 	// 1. Verificar que el usuario exista
 	_, err := s.consultas.GetUsuario(ctx, entrada.IDUsuario)
 	if err == sql.ErrNoRows {
@@ -99,14 +121,9 @@ func (s *ServicioSuscripcion) Crear(ctx context.Context, entrada sqlc.CreateSubs
 		return sqlc.Suscripcion{}, err
 	}
 
-	//  Verificar si ya existe una suscripción activa para este usuario y servicio
-	activa, err := s.consultas.GetSuscripcionActiva(ctx, sqlc.GetSuscripcionActivaParams{
-		IDUsuario:  entrada.IDUsuario,
-		IDServicio: entrada.IDServicio,
-	})
-	if err == nil && activa.IDSuscripcion > 0 {
-		return sqlc.Suscripcion{}, fmt.Errorf("el usuario ya posee una suscripción activa para este servicio")
-	} else if err != nil && err != sql.ErrNoRows {
+	// 3. Se puede tener más de una suscripción al mismo servicio si son cuentas
+	// distintas: a partir de la segunda hay que indicar el usuario de cuenta
+	if err := s.verificarCuentaDistinta(ctx, entrada.IDUsuario, entrada.IDServicio, entrada.UsuarioCuenta, 0, true); err != nil {
 		return sqlc.Suscripcion{}, err
 	}
 
@@ -133,13 +150,29 @@ func (s *ServicioSuscripcion) ObtenerPorID(ctx context.Context, id int32) (sqlc.
 	return ocultarPasswordCuenta(sub), nil
 }
 
-// ListarPorUsuario trae todas las suscripciones registradas para un usuario
+// ListarPorUsuario trae todas las suscripciones registradas para un usuario.
+// Antes renueva las que vencieron, así la lista siempre está al día.
 func (s *ServicioSuscripcion) ListarPorUsuario(ctx context.Context, idUsuario int32) ([]sqlc.ListSubscripcionesUsuarioRow, error) {
+	if _, err := s.RenovarVencidas(ctx); err != nil {
+		return nil, err
+	}
 	return s.consultas.ListSubscripcionesUsuario(ctx, idUsuario)
 }
 
 // Actualizar modifica el monto, vencimiento, credenciales o estado de una suscripción
 func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada sqlc.UpdateSubscripcionParams) (sqlc.Suscripcion, error) {
+	// 0. Buscar la suscripción: si no existe o es de solo lectura (vencida o de
+	// un mes anterior) no importa qué datos vengan, no se modifica
+	subExistente, err := s.consultas.GetSubscripcion(ctx, id)
+	if err == sql.ErrNoRows {
+		return sqlc.Suscripcion{}, fmt.Errorf("la suscripción especificada no existe")
+	} else if err != nil {
+		return sqlc.Suscripcion{}, err
+	}
+	if esSoloLectura(subExistente) {
+		return sqlc.Suscripcion{}, ErrSoloLectura
+	}
+
 	// 1. Validaciones básicas de entrada
 	monto, err := parsearMonto(entrada.Monto)
 	if err != nil {
@@ -148,51 +181,44 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 	if entrada.FechaVencimiento.IsZero() {
 		return sqlc.Suscripcion{}, fmt.Errorf("la fecha de vencimiento es obligatoria")
 	}
-	if strings.TrimSpace(entrada.UsuarioCuenta) == "" || strings.TrimSpace(entrada.PasswordCuenta) == "" {
-		return sqlc.Suscripcion{}, fmt.Errorf("las credenciales de la cuenta son obligatorias")
-	}
-
 	// 2. Validar que el estado sea uno de los permitidos
 	est := strings.TrimSpace(entrada.Estado)
 	if !estadosValidos[est] {
 		return sqlc.Suscripcion{}, fmt.Errorf("el estado '%s' no es válido (permitidos: Activa, Pausada, Cancelada)", est)
 	}
 
-	// 3. Buscar la suscripción existente en la base de datos
-	subExistente, err := s.consultas.GetSubscripcion(ctx, id)
-	if err == sql.ErrNoRows {
-		return sqlc.Suscripcion{}, fmt.Errorf("la suscripción especificada no existe")
-	} else if err != nil {
-		return sqlc.Suscripcion{}, err
-	}
-
-	// 4. Validar coherencia de fechas (la fecha de inicio debe ser anterior al vencimiento)
+	// 3. Validar coherencia de fechas (la fecha de inicio debe ser anterior al vencimiento)
 	if !subExistente.FechaInicio.Before(entrada.FechaVencimiento) {
 		return sqlc.Suscripcion{}, fmt.Errorf("la fecha de inicio debe ser anterior a la fecha de vencimiento")
 	}
 
-	// 5. Si se intenta reactivar (pasar a 'Activa'), verificar que no posea OTRA suscripción activa para este servicio
-	if est == "Activa" && subExistente.Estado != "Activa" {
-		existente, err := s.consultas.GetSuscripcionActiva(ctx, sqlc.GetSuscripcionActivaParams{
-			IDUsuario:  subExistente.IDUsuario,
-			IDServicio: subExistente.IDServicio,
-		})
-		if err == nil && existente.IDSuscripcion != id {
-			return sqlc.Suscripcion{}, fmt.Errorf("el usuario ya posee una suscripción activa para este servicio")
+	// las credenciales son opcionales; como la contraseña nunca se devuelve,
+	// si no se envía una nueva se conserva la que estaba guardada
+	entrada.UsuarioCuenta = textoOpcional(entrada.UsuarioCuenta)
+	entrada.PasswordCuenta = textoOpcional(entrada.PasswordCuenta)
+	if entrada.PasswordCuenta == nil {
+		entrada.PasswordCuenta = subExistente.PasswordCuenta
+	}
+
+	// 4. Si queda vigente (activa o pausada), no puede repetir la cuenta de
+	// otra suscripción vigente al mismo servicio
+	if est != "Cancelada" {
+		if err := s.verificarCuentaDistinta(ctx, subExistente.IDUsuario, subExistente.IDServicio, entrada.UsuarioCuenta, id, false); err != nil {
+			return sqlc.Suscripcion{}, err
 		}
 	}
 
-	// 6. Formatear monto y completar los datos que no vienen del body
+	// 5. Formatear monto y completar los datos que no vienen del body
 	entrada.IDSuscripcion = id // el id siempre viene de la URL
 	entrada.Monto = fmt.Sprintf("%.2f", monto)
 	entrada.Estado = est
 
-	// 7. Actualizar en la base de datos vía sqlc
+	// 6. Actualizar en la base de datos vía sqlc
 	if err := s.consultas.UpdateSubscripcion(ctx, entrada); err != nil {
 		return sqlc.Suscripcion{}, err
 	}
 
-	// 8. Construir la respuesta (sin password_cuenta)
+	// 7. Construir la respuesta (sin password_cuenta)
 	return sqlc.Suscripcion{
 		IDSuscripcion:    id,
 		IDUsuario:        subExistente.IDUsuario,
@@ -206,26 +232,48 @@ func (s *ServicioSuscripcion) Actualizar(ctx context.Context, id int32, entrada 
 	}, nil
 }
 
+// RevelarPasswordCuenta devuelve la contraseña guardada de la cuenta del
+// servicio (o nil si no tiene) solo si la suscripción es del usuario y este
+// confirma su propia contraseña de Suscripciones+.
+func (s *ServicioSuscripcion) RevelarPasswordCuenta(ctx context.Context, id, idUsuario int32, passwordUsuario string) (*string, error) {
+	usr, err := s.consultas.GetUsuario(ctx, idUsuario)
+	if err != nil {
+		return nil, err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(usr.Password), []byte(passwordUsuario)) != nil {
+		return nil, ErrPasswordUsuario
+	}
+
+	sub, err := s.consultas.GetSubscripcion(ctx, id)
+	if err == sql.ErrNoRows || (err == nil && sub.IDUsuario != idUsuario) {
+		return nil, fmt.Errorf("suscripción no encontrada")
+	} else if err != nil {
+		return nil, err
+	}
+	return sub.PasswordCuenta, nil
+}
+
+// PerteneceA indica si la suscripción existe y es del usuario indicado
+func (s *ServicioSuscripcion) PerteneceA(ctx context.Context, id, idUsuario int32) (bool, error) {
+	sub, err := s.consultas.GetSubscripcion(ctx, id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return sub.IDUsuario == idUsuario, nil
+}
+
 // Eliminar quita la suscripción previa comprobación
 func (s *ServicioSuscripcion) Eliminar(ctx context.Context, id int32) error {
-	_, err := s.consultas.GetSubscripcion(ctx, id)
+	sub, err := s.consultas.GetSubscripcion(ctx, id)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("suscripción no encontrada")
 	} else if err != nil {
 		return err
 	}
-
-	return s.consultas.DeleteSubscripcion(ctx, id)
-}
-
-// EliminarDeUsuario borra la suscripción solo si pertenece al usuario indicado.
-// Si es de otro usuario responde como si no existiera.
-func (s *ServicioSuscripcion) EliminarDeUsuario(ctx context.Context, id, idUsuario int32) error {
-	sub, err := s.consultas.GetSubscripcion(ctx, id)
-	if err == sql.ErrNoRows || (err == nil && sub.IDUsuario != idUsuario) {
-		return fmt.Errorf("suscripción no encontrada")
-	} else if err != nil {
-		return err
+	if esSoloLectura(sub) {
+		return ErrSoloLectura
 	}
 
 	return s.consultas.DeleteSubscripcion(ctx, id)

@@ -4,74 +4,243 @@ import (
 	"fmt"
 	"strconv"
 
-	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+	"tp2-krohn-trapani-cicopiedi/logic"
 )
 
-templ MisSuscripcionesPage(sesion *Sesion, suscripciones []sqlc.ListSubscripcionesUsuarioRow, mensajeError string) {
-	@Layout("Mis suscripciones", sesion, contenidoMisSuscripciones(suscripciones, mensajeError))
+// MisSuscripcionesPage muestra las suscripciones que vencen en un mes, con el
+// buscador, los links a otros meses, el calendario y (si se pidió) el detalle
+templ MisSuscripcionesPage(p Pagina, d DatosSuscripciones) {
+	@Layout(p, contenidoMisSuscripciones(d))
 }
 
-templ contenidoMisSuscripciones(suscripciones []sqlc.ListSubscripcionesUsuarioRow, mensajeError string) {
+templ contenidoMisSuscripciones(d DatosSuscripciones) {
 	<div class="titulo-con-accion">
-		<h1>Mis suscripciones</h1>
-		<a href="/cuenta/suscripciones/nueva" role="button">Nueva suscripción</a>
-	</div>
-	@AvisoError(mensajeError)
-	<article>
-		@SuscripcionList(suscripciones)
-	</article>
-}
-
-// SuscripcionList muestra las suscripciones del usuario y su gasto mensual activo
-templ SuscripcionList(suscripciones []sqlc.ListSubscripcionesUsuarioRow) {
-	if len(suscripciones) == 0 {
-		@MensajeVacio("Todavía no registraste ninguna suscripción.")
-	} else {
-		<p class="total">Gasto mensual activo: <strong>{ totalActivo(suscripciones) }</strong></p>
-		<div class="overflow-auto">
-			<table class="striped">
-				<thead>
-					<tr>
-						<th>Servicio</th>
-						<th>Monto</th>
-						<th>Vigencia</th>
-						<th>Cuenta</th>
-						<th>Estado</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, s := range suscripciones {
-						<tr>
-							<td>
-								{ s.ServicioNombre }
-								<small class="etiqueta">{ s.ServicioCategoria }</small>
-							</td>
-							<td>{ formatearMonto(s.Monto) }</td>
-							<td>{ formatearFecha(s.FechaInicio) } al { formatearFecha(s.FechaVencimiento) }</td>
-							<td>{ s.UsuarioCuenta }</td>
-							<td><span class={ "estado", "estado-" + s.Estado }>{ s.Estado }</span></td>
-							<td>
-								@BotonEliminar(fmt.Sprintf("/cuenta/suscripciones/%d/eliminar", s.IDSuscripcion))
-							</td>
-						</tr>
-					}
-				</tbody>
-			</table>
+		<div>
+			<h1>Mis suscripciones</h1>
+			<p class="lema">
+				if d.EsMesActual {
+					Vencimientos de este mes: { d.NombreMes }
+				} else {
+					Vencimientos de { d.NombreMes }
+				}
+			</p>
 		</div>
+		<a href="/cuenta/suscripciones/nueva" class="boton">Nueva suscripción</a>
+	</div>
+	<div class="vencimientos">
+		<section class="panel">
+			if d.SoloLectura {
+				<p class="aviso-lectura">Estás viendo un mes anterior: estas suscripciones son solo de lectura.</p>
+			}
+			<p class="total">Gasto mensual activo de { d.NombreMes }: { d.Total }</p>
+			if d.HayEnElMes {
+				<form method="get" action="/cuenta/suscripciones" class="buscador-form">
+					<input type="hidden" name="mes" value={ d.Mes }/>
+					<label class="buscador">
+						Buscar en este mes
+						<input type="search" name="q" value={ d.Busqueda } placeholder="Servicio, categoría o cuenta…" autocomplete="off"/>
+					</label>
+					<button type="submit" class="boton-chico">Buscar</button>
+					if d.Busqueda != "" {
+						<a href={ templ.URL(UrlSuscripciones(d.Mes, "", 0, false)) } class="boton-secundario boton-chico">Limpiar</a>
+					}
+				</form>
+			}
+			<ul id="lista-suscripciones" class="lista">
+				if !d.HayAlguna {
+					@VacioLista("Todavía no registraste ninguna suscripción.")
+				} else if !d.HayEnElMes {
+					@VacioLista("No tenés suscripciones que venzan en " + d.NombreMes + ".")
+				} else if len(d.Suscripciones) == 0 {
+					@VacioLista("Ninguna suscripción de " + d.NombreMes + " coincide con \"" + d.Busqueda + "\".")
+				} else {
+					for _, s := range d.Suscripciones {
+						@ItemSuscripcion(d, s)
+					}
+				}
+			</ul>
+			<nav class="navegacion-meses" aria-label="Otros meses">
+				<a href={ templ.URL(UrlSuscripciones(d.MesAnterior, "", 0, false)) }>← { d.NombreAnterior }</a>
+				<a id="mes-siguiente" href={ templ.URL(UrlSuscripciones(d.MesSiguiente, "", 0, false)) }>Ver los vencimientos de { d.NombreSiguiente } →</a>
+			</nav>
+		</section>
+		@Calendario(d)
+	</div>
+	if d.Detalle != nil {
+		@DetalleSuscripcion(d, *d.Detalle)
 	}
 }
 
-// totalActivo suma los montos de las suscripciones en estado Activa
-func totalActivo(suscripciones []sqlc.ListSubscripcionesUsuarioRow) string {
-	total := 0.0
-	for _, s := range suscripciones {
-		if s.Estado != "Activa" {
-			continue
+// ItemSuscripcion: logo y datos (link al detalle) y, si es editable,
+// "Modificar", el cambio de estado y "Eliminar"
+templ ItemSuscripcion(d DatosSuscripciones, s Fila) {
+	<li class={ "item", templ.KV("item-solo-lectura", !d.Editables[s.IDSuscripcion]) }>
+		<a class="item-enlace" href={ templ.URL(UrlSuscripciones(d.Mes, d.Busqueda, s.IDSuscripcion, false)) } aria-label={ "Ver detalles de " + s.ServicioNombre }>
+			@IconoCategoria(s.ServicioCategoria)
+			<span class="item-info">
+				<strong>{ s.ServicioNombre } — { formatearMonto(s.Monto) }</strong>
+				<span class="item-detalle">Tocá para ver los detalles</span>
+			</span>
+		</a>
+		if d.Editables[s.IDSuscripcion] {
+			<a class="btn-modificar" href={ templ.URL(UrlSuscripciones(d.Mes, d.Busqueda, s.IDSuscripcion, true)) }>Modificar</a>
+			<form method="post" action={ templ.URL(fmt.Sprintf("/cuenta/suscripciones/%d/estado", s.IDSuscripcion)) } class="form-estado">
+				<input type="hidden" name="mes" value={ d.Mes }/>
+				<input type="hidden" name="q" value={ d.Busqueda }/>
+				<select name="estado" class="select-estado" aria-label={ "Estado de " + s.ServicioNombre }>
+					for _, estado := range []string{"Activa", "Pausada", "Cancelada"} {
+						<option value={ estado } selected?={ estado == s.Estado }>{ estado }</option>
+					}
+				</select>
+				<button type="submit" class="boton-chico">Guardar</button>
+			</form>
+			<form method="post" action={ templ.URL(fmt.Sprintf("/cuenta/suscripciones/%d/eliminar", s.IDSuscripcion)) } class="form-eliminar">
+				<input type="hidden" name="mes" value={ d.Mes }/>
+				<input type="hidden" name="q" value={ d.Busqueda }/>
+				<button type="submit" class="btn-eliminar">Eliminar</button>
+			</form>
+		} else {
+			<span class="estado-fijo">{ textoEstado(s.Estado) }</span>
 		}
-		if monto, err := strconv.ParseFloat(s.Monto, 64); err == nil {
-			total += monto
-		}
-	}
-	return "$ " + formatearNumero(total)
+	</li>
+}
+
+// Calendario del mes con un pin en cada día de vencimiento; el cartel con
+// los servicios aparece al pasar el cursor (CSS)
+templ Calendario(d DatosSuscripciones) {
+	<aside class="panel calendario" aria-label="Calendario de vencimientos">
+		<h2>{ mayusculaInicial(d.NombreMes) }</h2>
+		<div id="calendario" class="calendario-grilla">
+			for _, inicial := range []string{"L", "M", "M", "J", "V", "S", "D"} {
+				<div class="cal-semana">{ inicial }</div>
+			}
+			for _, c := range d.Calendario {
+				if c.Dia == 0 {
+					<div></div>
+				} else if len(c.Vencen) == 0 {
+					<div class={ "cal-dia", templ.KV("cal-hoy", c.Hoy) }><span>{ strconv.Itoa(c.Dia) }</span></div>
+				} else {
+					<div
+						class={ "cal-dia", "cal-con-vencimiento", templ.KV("cal-hoy", c.Hoy), templ.KV("cal-izquierda", c.Columna <= 1), templ.KV("cal-derecha", c.Columna >= 5) }
+						tabindex="0"
+					>
+						<span>{ strconv.Itoa(c.Dia) }</span>
+						<span class="cal-pin" aria-hidden="true"></span>
+						<div class="cal-cartel" role="tooltip">
+							<strong>Vence el { strconv.Itoa(c.Dia) }:</strong>
+							for _, v := range c.Vencen {
+								<span>
+									{ v.ServicioNombre } — { formatearMonto(v.Monto) }
+									if v.Estado != "Activa" {
+										({ textoEstado(v.Estado) })
+									}
+								</span>
+							}
+						</div>
+					</div>
+				}
+			}
+		</div>
+		<p class="calendario-ayuda">Pasá el cursor por un día marcado para ver qué vence.</p>
+	</aside>
+}
+
+// DetalleSuscripcion se dibuja sobre la lista desenfocada. El fondo y la ×
+// son links que vuelven a la lista (sin JavaScript).
+templ DetalleSuscripcion(d DatosSuscripciones, det Detalle) {
+	<div class="detalle-fondo">
+		<a class="detalle-fondo-cerrar" href={ templ.URL(UrlSuscripciones(d.Mes, d.Busqueda, 0, false)) } aria-label="Cerrar el detalle"></a>
+		<article id="detalle" class="detalle" role="dialog" aria-modal="true" aria-labelledby="detalle-titulo">
+			<div class="detalle-contenido">
+				<a class="detalle-cerrar" href={ templ.URL(UrlSuscripciones(d.Mes, d.Busqueda, 0, false)) } aria-label="Cerrar">×</a>
+				<span class="etiqueta">{ det.Sub.ServicioCategoria }</span>
+				<h2 id="detalle-titulo">{ det.Sub.ServicioNombre }</h2>
+				<div class="detalle-monto-fila">
+					<p class="detalle-monto">{ formatearMonto(det.Sub.Monto) } por mes</p>
+					if det.Editable && !det.Editando {
+						<a class="boton-chico" href={ templ.URL(UrlSuscripciones(d.Mes, d.Busqueda, det.Sub.IDSuscripcion, true)) }>Modificar</a>
+					}
+				</div>
+				if det.Editando {
+					<form method="post" action={ templ.URL(fmt.Sprintf("/cuenta/suscripciones/%d/modificar", det.Sub.IDSuscripcion)) } class="formulario editar-suscripcion">
+						<input type="hidden" name="mes" value={ d.Mes }/>
+						<input type="hidden" name="q" value={ d.Busqueda }/>
+						<label>
+							Monto mensual
+							<input type="number" name="monto" min="0.01" step="0.01" value={ det.Form.Monto } required autofocus/>
+						</label>
+						<label>
+							Usuario de la cuenta del servicio
+							<input type="text" name="usuario_cuenta" value={ det.Form.UsuarioCuenta } placeholder="Sin cuenta" autocomplete="off"/>
+						</label>
+						<label>
+							Nueva contraseña de la cuenta
+							<input type="password" name="password_cuenta" placeholder="Dejala vacía para no cambiarla" autocomplete="new-password"/>
+						</label>
+						if det.ErrorEditar != "" {
+							<p class="detalle-error" role="alert">{ det.ErrorEditar }</p>
+						}
+						<div class="acciones-confirmar">
+							<a class="boton-secundario" href={ templ.URL(UrlSuscripciones(d.Mes, d.Busqueda, det.Sub.IDSuscripcion, false)) }>Cancelar</a>
+							<button type="submit">Guardar</button>
+						</div>
+					</form>
+				}
+				if !det.Editable {
+					<p class="aviso-lectura">Esta suscripción es solo de lectura.</p>
+				}
+				<dl class="detalle-datos">
+					<dt>Estado</dt>
+					<dd>{ textoEstado(det.Sub.Estado) }</dd>
+					<dt>Cuenta</dt>
+					<dd>
+						if det.Sub.UsuarioCuenta != nil {
+							{ *det.Sub.UsuarioCuenta }
+						} else {
+							Sin cuenta
+						}
+					</dd>
+					<dt>Inicio</dt>
+					<dd>{ formatearFecha(det.Sub.FechaInicio) }</dd>
+					<dt>Vencimiento</dt>
+					<dd>{ formatearFecha(det.Sub.FechaVencimiento) }</dd>
+					<dt>Contraseña</dt>
+					<dd>
+						if !det.PasswordRevelada {
+							<span>••••••••</span>
+						} else if det.Password != nil {
+							<span class="revelada">{ *det.Password }</span>
+						} else {
+							<span>No guardaste contraseña para esta suscripción</span>
+						}
+					</dd>
+				</dl>
+				if !det.PasswordRevelada {
+					// para ver la contraseña de la cuenta se confirma la del usuario
+					<details class="revelar" open?={ det.ErrorPassword != "" }>
+						<summary>Mostrar contraseña</summary>
+						<form method="post" action={ templ.URL(fmt.Sprintf("/cuenta/suscripciones/%d/password", det.Sub.IDSuscripcion)) } class="formulario confirmar">
+							<input type="hidden" name="mes" value={ d.Mes }/>
+							<input type="hidden" name="q" value={ d.Busqueda }/>
+							<label>
+								Para ver la contraseña, confirmá la contraseña de tu usuario de Suscripciones+
+								<input type="password" name="password" autocomplete="current-password" required/>
+							</label>
+							if det.ErrorPassword != "" {
+								<p class="detalle-error" role="alert">{ det.ErrorPassword }</p>
+							}
+							<div class="acciones-confirmar">
+								<button type="submit">Mostrar</button>
+							</div>
+						</form>
+					</details>
+				}
+			</div>
+		</article>
+	</div>
+}
+
+// EsEditable: ni de un mes anterior ni un período ya renovado
+func EsEditable(s Fila) bool {
+	return !logic.EsSoloLectura(s.Estado, s.FechaVencimiento)
 }

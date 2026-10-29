@@ -46,7 +46,6 @@ func crearUsuarioPrueba(t *testing.T, queries *sqlc.Queries) sqlc.Usuario {
 		Nombre:   "Nicolas",
 		Email:    "nicolas@example.com",
 		Password: "password123",
-		Tipo:     "consumidor",
 	})
 	if err != nil {
 		t.Fatalf("Error al crear usuario: %v", err)
@@ -67,6 +66,11 @@ func crearServicioPrueba(t *testing.T, queries *sqlc.Queries) sqlc.Servicio {
 	return srv
 }
 
+// texto devuelve un puntero, para los campos opcionales (NULL en la base)
+func texto(valor string) *string {
+	return &valor
+}
+
 // crearSuscripcionPrueba crea la suscripción que usan los tests
 func crearSuscripcionPrueba(t *testing.T, queries *sqlc.Queries, idUsuario, idServicio int32) sqlc.Suscripcion {
 	t.Helper()
@@ -77,8 +81,8 @@ func crearSuscripcionPrueba(t *testing.T, queries *sqlc.Queries, idUsuario, idSe
 		Monto:            "6000.00",
 		FechaVencimiento: ahora.AddDate(0, 1, 0),
 		FechaInicio:      ahora,
-		UsuarioCuenta:    "nicolas@example.com",
-		PasswordCuenta:   "passcuenta123",
+		UsuarioCuenta:    texto("nicolas@example.com"),
+		PasswordCuenta:   texto("passcuenta123"),
 		Estado:           "Activa",
 	})
 	if err != nil {
@@ -140,7 +144,6 @@ func TestUsuario_CRUD(t *testing.T) {
 			Nombre:   "Usuario A Borrar",
 			Email:    "aborrar@example.com",
 			Password: "password123",
-			Tipo:     "consumidor",
 		})
 		if err != nil {
 			t.Fatalf("Error al crear usuario auxiliar para borrar: %v", err)
@@ -232,9 +235,32 @@ func TestSubscripciones_CRUD(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Error al obtener suscripción: %v", err)
 		}
-		if sub.UsuarioCuenta != "nicolas@example.com" {
-			t.Errorf("Usuario de cuenta esperado 'nicolas@example.com', obtenido '%s'", sub.UsuarioCuenta)
+		if sub.UsuarioCuenta == nil || *sub.UsuarioCuenta != "nicolas@example.com" {
+			t.Errorf("Usuario de cuenta esperado 'nicolas@example.com', obtenido %v", sub.UsuarioCuenta)
 		}
+	})
+
+	t.Run("CreateSubscripcionSinCredenciales", func(t *testing.T) {
+		// en servicios como un gimnasio no hay usuario ni contraseña: quedan en NULL
+		srvDeporte, err := queries.CreateServicio(ctx, sqlc.CreateServicioParams{Nombre: "Pádel", Categoria: "Deportes"})
+		if err != nil {
+			t.Fatalf("Error al crear servicio de deportes: %v", err)
+		}
+		sub, err := queries.CreateSubscripcion(ctx, sqlc.CreateSubscripcionParams{
+			IDUsuario:        createdUserID,
+			IDServicio:       srvDeporte.IDServicio,
+			Monto:            "15000.00",
+			FechaVencimiento: ahora.AddDate(0, 1, 0),
+			FechaInicio:      ahora,
+			Estado:           "Activa",
+		})
+		if err != nil {
+			t.Fatalf("Error al crear suscripción sin credenciales: %v", err)
+		}
+		if sub.UsuarioCuenta != nil || sub.PasswordCuenta != nil {
+			t.Errorf("Se esperaban credenciales NULL, se obtuvo %v / %v", sub.UsuarioCuenta, sub.PasswordCuenta)
+		}
+		_ = queries.DeleteSubscripcion(ctx, sub.IDSuscripcion)
 	})
 
 	t.Run("UpdateSubscripcion", func(t *testing.T) {
@@ -243,8 +269,8 @@ func TestSubscripciones_CRUD(t *testing.T) {
 			Monto:            "6500.00",
 			FechaVencimiento: ahora.AddDate(0, 2, 0),
 			Estado:           "Pausada",
-			UsuarioCuenta:    "nicolas@example.com",
-			PasswordCuenta:   "passcuenta123",
+			UsuarioCuenta:    texto("nicolas@example.com"),
+			PasswordCuenta:   texto("passcuenta123"),
 		})
 		if err != nil {
 			t.Fatalf("Error al actualizar suscripción: %v", err)

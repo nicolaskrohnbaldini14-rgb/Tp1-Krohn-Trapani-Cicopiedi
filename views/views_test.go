@@ -39,98 +39,162 @@ func verificarNoContiene(t *testing.T, html string, prohibidos ...string) {
 	}
 }
 
+func fecha(anio int, mes time.Month, dia int) time.Time {
+	return time.Date(anio, mes, dia, 0, 0, 0, 0, time.UTC)
+}
+
+var catalogo = []sqlc.Servicio{
+	{IDServicio: 1, Nombre: "Netflix", Categoria: "Streaming"},
+	{IDServicio: 2, Nombre: "Spotify", Categoria: "Música"},
+	{IDServicio: 3, Nombre: "Pádel", Categoria: "Deportes"},
+}
+
 func TestHomePage_SinSesion(t *testing.T) {
-	html := renderizar(t, HomePage(nil, nil))
+	html := renderizar(t, HomePage(Pagina{Titulo: "Inicio", Clave: "inicio", Servicios: catalogo}))
 
 	verificarContiene(t, html,
 		"<!doctype html>",
-		"pico.min.css",
+		`href="/static/styles.css"`,
 		`href="/login"`,
 		`href="/registro"`,
-		`href="/empresas/registro"`,
-		"Todavía no hay servicios publicados.",
+		// panel de servicios agrupado por categoría, con su logo
+		"panel-servicios",
+		"Streaming", "Música", "Deportes",
+		`class="icono-categoria"`,
+		"Netflix",
 	)
-	// el alta de servicios es solo para empresas
-	verificarNoContiene(t, html, `action="/empresa/servicios"`, "Cerrar sesión")
+	// sin sesión los servicios no son links para suscribirse
+	verificarNoContiene(t, html, "/cuenta/suscripciones/nueva?servicio=", "Cerrar sesión", "<script")
 }
 
-func TestHomePage_ConSesionYServicios(t *testing.T) {
-	servicios := []sqlc.Servicio{{IDServicio: 3, Nombre: "Netflix", Categoria: "Streaming"}}
-	html := renderizar(t, HomePage(&Sesion{Nombre: "Nico", Tipo: "consumidor"}, servicios))
-
-	verificarContiene(t, html, "Hola, Nico", "Cerrar sesión", `href="/cuenta"`, "Netflix", "Streaming")
-	verificarNoContiene(t, html, `action="/empresa/servicios"`, "/eliminar")
-}
-
-func TestCuentaPage(t *testing.T) {
-	suscripciones := []sqlc.ListSubscripcionesUsuarioRow{
-		{IDSuscripcion: 1, Monto: "2500.00", Estado: "Activa"},
-		{IDSuscripcion: 2, Monto: "1000.00", Estado: "Pausada"},
-	}
-	html := renderizar(t, CuentaPage(&Sesion{Nombre: "Nico", Tipo: "consumidor"}, suscripciones))
+func TestHomePage_ConSesion(t *testing.T) {
+	html := renderizar(t, HomePage(Pagina{Clave: "inicio", Sesion: &Sesion{Nombre: "Nico"}, Servicios: catalogo}))
 
 	verificarContiene(t, html,
 		"Hola, Nico",
-		"1 suscripción activa",
-		"$ 2.500,00 por mes",
+		"Cerrar sesión",
+		`href="/cuenta"`,
+		`href="/cuenta/suscripciones/nueva?servicio=1"`,
+	)
+}
+
+func TestCuentaPage(t *testing.T) {
+	html := renderizar(t, CuentaPage(Pagina{Clave: "cuenta", Sesion: &Sesion{Nombre: "Nico"}},
+		ResumenMes{NombreMes: "octubre de 2026", Cantidad: 1, Total: "$ 2.500,00"}))
+
+	verificarContiene(t, html,
+		"Hola, Nico",
+		"En octubre de 2026 vence 1 suscripción · $ 2.500,00",
 		`href="/cuenta/suscripciones"`,
 		`href="/cuenta/suscripciones/nueva"`,
 	)
 }
 
-func TestMisSuscripcionesPage(t *testing.T) {
-	sesion := &Sesion{Nombre: "Nico", Tipo: "consumidor"}
-
-	vacia := renderizar(t, MisSuscripcionesPage(sesion, nil, ""))
-	verificarContiene(t, vacia, "Todavía no registraste ninguna suscripción.")
-
-	suscripciones := []sqlc.ListSubscripcionesUsuarioRow{{
+func filaDePrueba() Fila {
+	cuenta := "martinagym"
+	return Fila{
 		IDSuscripcion:     5,
-		Monto:             "2500.00",
-		FechaInicio:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-		FechaVencimiento:  time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC),
-		UsuarioCuenta:     "cuenta",
+		Monto:             "32000.00",
+		FechaInicio:       fecha(2026, 10, 1),
+		FechaVencimiento:  fecha(2026, 10, 28),
+		UsuarioCuenta:     &cuenta,
 		Estado:            "Activa",
-		ServicioNombre:    "Netflix",
-		ServicioCategoria: "Streaming",
-	}}
-	html := renderizar(t, MisSuscripcionesPage(sesion, suscripciones, "algo salió mal"))
-	verificarContiene(t, html,
-		`action="/cuenta/suscripciones/5/eliminar"`,
-		"$ 2.500,00",
-		"01/01/2026 al 31/12/2026",
-		"algo salió mal",
-	)
-}
-
-func TestNuevaSuscripcionPage_ConservaLosDatos(t *testing.T) {
-	servicios := []sqlc.Servicio{
-		{IDServicio: 1, Nombre: "Netflix", Categoria: "Streaming"},
-		{IDServicio: 2, Nombre: "Spotify", Categoria: "Música"},
+		ServicioNombre:    "Gimnasio",
+		ServicioCategoria: "Deportes",
 	}
-	form := FormSuscripcion{IDServicio: 2, Monto: "999", FechaInicio: "2026-03-01", Estado: "Pausada"}
-	html := renderizar(t, NuevaSuscripcionPage(&Sesion{Nombre: "Nico", Tipo: "consumidor"}, servicios, form, ""))
+}
+
+func TestMisSuscripcionesPage_Editable(t *testing.T) {
+	s := filaDePrueba()
+	d := DatosSuscripciones{
+		Mes: "2026-10", NombreMes: "octubre de 2026", EsMesActual: true,
+		Suscripciones: []Fila{s}, HayEnElMes: true, HayAlguna: true,
+		Total: "$ 32.000,00", Editables: map[int32]bool{5: true},
+		Calendario: ArmarCalendario("2026-10", []Fila{s}, fecha(2026, 10, 29)),
+	}
+	html := renderizar(t, MisSuscripcionesPage(Pagina{Clave: "suscripciones", Sesion: &Sesion{Nombre: "Nico"}}, d))
 
 	verificarContiene(t, html,
-		`<option value="2" selected>`,
-		`value="999"`,
-		`value="2026-03-01"`,
-		`<option value="Pausada" selected>`,
+		"Gimnasio — $ 32.000,00",
+		`action="/cuenta/suscripciones/5/estado"`,
+		`action="/cuenta/suscripciones/5/eliminar"`,
+		"Modificar",
+		`name="q"`,
+		"Gasto mensual activo de octubre de 2026: $ 32.000,00",
+		"Vence el 28:",
 	)
-	// el usuario sale de la sesión: no se elige en el formulario
-	verificarNoContiene(t, html, `name="id_usuario"`)
+	// la lista no muestra la cuenta ni las fechas: están en el detalle
+	verificarNoContiene(t, html, "martinagym", "<script")
 }
 
-func TestEmpresaPage(t *testing.T) {
-	servicios := []sqlc.Servicio{{IDServicio: 3, Nombre: "Netflix", Categoria: "Streaming"}}
-	html := renderizar(t, EmpresaPage(&Sesion{Nombre: "Netflix SA", Tipo: "empresa"}, servicios, "", ""))
+func TestMisSuscripcionesPage_SoloLecturaYDetalle(t *testing.T) {
+	s := filaDePrueba()
+	s.Estado = "Vencida"
+	password := "gym2026!"
+	d := DatosSuscripciones{
+		Mes: "2026-09", NombreMes: "septiembre de 2026", SoloLectura: true,
+		Suscripciones: []Fila{s}, HayEnElMes: true, HayAlguna: true,
+		Editables: map[int32]bool{5: false},
+		Detalle:   &Detalle{Sub: s, PasswordRevelada: true, Password: &password},
+	}
+	html := renderizar(t, MisSuscripcionesPage(Pagina{Clave: "suscripciones", Sesion: &Sesion{Nombre: "Nico"}}, d))
 
-	verificarContiene(t, html, `action="/empresa/servicios"`, `action="/empresa/servicios/3/eliminar"`, `href="/empresa"`)
-	verificarNoContiene(t, html, `href="/cuenta/suscripciones"`)
+	verificarContiene(t, html,
+		"solo de lectura",
+		"Vencida (renovada)",
+		"martinagym",
+		"gym2026!",
+		`class="detalle-fondo"`,
+	)
+	verificarNoContiene(t, html, `/estado"`, `/eliminar"`, `/modificar"`)
 }
 
-func TestServicioList_EscapaHTML(t *testing.T) {
-	html := renderizar(t, ServicioList([]sqlc.Servicio{{IDServicio: 1, Nombre: "<script>alert(1)</script>"}}))
+func TestNuevaSuscripcionPage(t *testing.T) {
+	p := Pagina{Clave: "nueva-suscripcion", Sesion: &Sesion{Nombre: "Nico"}, Servicios: catalogo,
+		Catalogo: Catalogo{Abierto: true, Elegir: true, IDActual: 3, CerrarURL: "/cuenta/suscripciones/nueva?servicio=3"}}
+	html := renderizar(t, NuevaSuscripcionPage(p, FormSuscripcion{IDServicio: 3, Monto: "15000"}))
+
+	verificarContiene(t, html,
+		`<optgroup label="Deportes">`,
+		`<option value="3" selected>Pádel</option>`,
+		`value="15000"`,
+		// el catálogo abierto en modo "elegir" con el servicio actual resaltado
+		"panel-servicios abierto modo-elegir",
+		"panel-servicio elegido",
+	)
+	// se crea siempre activa: no se elige el estado ni el usuario
+	verificarNoContiene(t, html, `name="estado"`, `name="id_usuario"`)
+}
+
+func TestArmarCalendario(t *testing.T) {
+	celdas := ArmarCalendario("2026-10", []Fila{filaDePrueba()}, fecha(2026, 10, 29))
+
+	// octubre de 2026 empieza un jueves: 3 celdas vacías antes del día 1
+	if celdas[3].Dia != 1 || celdas[2].Dia != 0 {
+		t.Fatalf("el 1 de octubre de 2026 debería caer jueves, celdas: %+v", celdas[:4])
+	}
+	dia28 := celdas[3+27]
+	if dia28.Dia != 28 || len(dia28.Vencen) != 1 {
+		t.Errorf("el día 28 debería tener 1 vencimiento: %+v", dia28)
+	}
+	if !celdas[3+28].Hoy {
+		t.Error("el 29 debería estar marcado como hoy")
+	}
+}
+
+func TestMeses(t *testing.T) {
+	if NombreMes("2026-10") != "octubre de 2026" {
+		t.Errorf("NombreMes = %q", NombreMes("2026-10"))
+	}
+	if SumarMeses("2026-12", 1) != "2027-01" || SumarMeses("2026-01", -1) != "2025-12" {
+		t.Error("SumarMeses no cruza bien los años")
+	}
+}
+
+func TestItemSuscripcion_EscapaHTML(t *testing.T) {
+	s := filaDePrueba()
+	s.ServicioNombre = "<script>alert(1)</script>"
+	html := renderizar(t, ItemSuscripcion(DatosSuscripciones{Editables: map[int32]bool{}}, s))
 	verificarNoContiene(t, html, "<script>")
 }
 

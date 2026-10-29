@@ -1,73 +1,178 @@
 package views
 
+import (
+	"fmt"
+	"strings"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+	"tp2-krohn-trapani-cicopiedi/logic"
+)
+
 // Sesion tiene los datos del usuario que inició sesión que necesita la vista.
 // Es nil cuando la persona navega sin haber ingresado.
 type Sesion struct {
 	Nombre string
-	Tipo   string
 }
 
-func (s *Sesion) EsConsumidor() bool {
-	return s != nil && s.Tipo == "consumidor"
+// Catalogo indica cómo se muestra el panel de servicios: normalmente se abre
+// al pasar el cursor; en modo "elegir" (desde el formulario de nueva
+// suscripción) se dibuja abierto y resalta el servicio elegido.
+type Catalogo struct {
+	Abierto   bool
+	Elegir    bool
+	IDActual  int32
+	CerrarURL string
 }
 
-func (s *Sesion) EsEmpresa() bool {
-	return s != nil && s.Tipo == "empresa"
+// Pagina reúne lo que necesita el layout en todas las páginas
+type Pagina struct {
+	Titulo    string
+	Clave     string // identifica la página (resalta la opción de la barra)
+	Sesion    *Sesion
+	Servicios []sqlc.Servicio
+	Aviso     Aviso
+	Catalogo  Catalogo
 }
 
-// Layout define la estructura base de todas las páginas y renderiza
-// el componente recibido como contenido principal.
-templ Layout(titulo string, sesion *Sesion, contenido templ.Component) {
+// Layout define la estructura base de todas las páginas y renderiza el
+// componente recibido como contenido principal.
+templ Layout(p Pagina, contenido templ.Component) {
 	<!DOCTYPE html>
-	<html lang="es" data-theme="light">
+	<html lang="es">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>{ titulo } · Suscripciones+</title>
-			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css"/>
+			<title>{ p.Titulo } · Suscripciones+</title>
 			<link rel="stylesheet" href="/static/styles.css"/>
 		</head>
-		<body>
-			<header class="container">
-				@Navegacion(sesion)
+		<body data-pagina={ p.Clave }>
+			<header class="barra">
+				<a href="/" class="marca">Suscripciones+</a>
+				@Navegacion(p)
 			</header>
-			<main class="container">
+			@AvisoMensaje(p.Aviso)
+			<main class="contenido">
 				@contenido
 			</main>
-			<footer class="container pie">
-				if sesion == nil {
-					<p>¿Sos una empresa? <a href="/empresas/registro">Registrá tu empresa</a> para publicar tus servicios.</p>
-				}
+			<footer class="pie">
 				<small>Krohn · Trapani · Cicopiedi</small>
 			</footer>
 		</body>
 	</html>
 }
 
-templ Navegacion(sesion *Sesion) {
-	<nav class="barra">
-		<ul>
-			<li><a href="/" class="marca">Suscripciones+</a></li>
-		</ul>
-		<ul>
-			if sesion == nil {
-				<li><a href="/login">Iniciar sesión</a></li>
-				<li><a href="/registro" role="button">Registrarse</a></li>
-			} else {
-				if sesion.EsConsumidor() {
-					<li><a href="/cuenta/suscripciones">Mis suscripciones</a></li>
-					<li><a href="/cuenta/suscripciones/nueva">Nueva suscripción</a></li>
-				}
-				if sesion.EsEmpresa() {
-					<li><a href="/empresa">Mis servicios</a></li>
-				}
-				<li class="saludo">Hola, { sesion.Nombre }</li>
-				<li>
-					<form method="post" action="/logout" class="form-salir">
-						<button type="submit" class="outline">Cerrar sesión</button>
-					</form>
-				</li>
-			}
-		</ul>
+templ Navegacion(p Pagina) {
+	<nav id="navegacion" class={ templ.KV("con-sesion", p.Sesion != nil) }>
+		<div class="desplegable">
+			<button type="button" class="nav-item desplegable-boton">Servicios ▾</button>
+			@PanelServicios(p)
+		</div>
+		if p.Sesion == nil {
+			<a href="/login" class="nav-item">Iniciar sesión</a>
+			<a href="/registro" class="boton">Registrarse</a>
+		} else {
+			<a href="/cuenta/suscripciones" class={ "nav-item", templ.KV("activo", p.Clave == "suscripciones") } { paginaActual(p.Clave == "suscripciones")... }>Mis suscripciones</a>
+			<a href="/cuenta/suscripciones/nueva" class={ "nav-item", templ.KV("activo", p.Clave == "nueva-suscripcion") } { paginaActual(p.Clave == "nueva-suscripcion")... }>Nueva suscripción</a>
+			<span class="nav-separador" aria-hidden="true"></span>
+			<a href="/cuenta" class="usuario-chip" { paginaActual(p.Clave == "cuenta")... }>
+				<span class="usuario-inicial" aria-hidden="true">{ inicial(p.Sesion.Nombre) }</span>
+				Hola, { p.Sesion.Nombre }
+			</a>
+			<form method="post" action="/logout" class="form-salir">
+				<button type="submit" class="boton-salir">Cerrar sesión</button>
+			</form>
+		}
 	</nav>
+}
+
+// PanelServicios es el catálogo agrupado por categoría, a pantalla completa
+templ PanelServicios(p Pagina) {
+	<div class={ "panel-servicios", templ.KV("abierto", p.Catalogo.Abierto), templ.KV("modo-elegir", p.Catalogo.Elegir) }>
+		<div class="panel-servicios-contenido">
+			<div class="panel-servicios-encabezado">
+				<div>
+					<h2>Servicios disponibles</h2>
+					<p class="panel-servicios-ayuda">
+						if p.Catalogo.Elegir {
+							Elegí el servicio para tu nueva suscripción.
+						} else if p.Sesion != nil {
+							Elegí un servicio para suscribirte.
+						} else {
+							<a href="/login">Iniciá sesión</a> o <a href="/registro">registrate</a> para suscribirte a un servicio.
+						}
+					</p>
+				</div>
+				if p.Catalogo.Abierto {
+					<a href={ templ.URL(p.Catalogo.CerrarURL) } class="panel-servicios-cerrar" aria-label="Cerrar">×</a>
+				}
+			</div>
+			<div class="panel-servicios-grilla">
+				for _, grupo := range AgruparPorCategoria(p.Servicios) {
+					<section class="panel-categoria">
+						<h3>
+							@IconoCategoria(grupo.Categoria)
+							{ grupo.Categoria }
+						</h3>
+						<ul>
+							for _, s := range grupo.Servicios {
+								<li>
+									if p.Sesion != nil {
+										<a
+											href={ templ.URL(fmt.Sprintf("/cuenta/suscripciones/nueva?servicio=%d", s.IDServicio)) }
+											class={ "panel-servicio", templ.KV("elegido", p.Catalogo.Elegir && s.IDServicio == p.Catalogo.IDActual) }
+											title={ "Suscribirme a " + s.Nombre }
+										>{ s.Nombre }</a>
+									} else {
+										<span class="panel-servicio">{ s.Nombre }</span>
+									}
+								</li>
+							}
+						</ul>
+					</section>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// GrupoServicios son los servicios de una categoría
+type GrupoServicios struct {
+	Categoria string
+	Servicios []sqlc.Servicio
+}
+
+// AgruparPorCategoria agrupa el catálogo en el mismo orden de categorías con
+// que se precarga (logic.Categorias); dentro de cada una quedan por nombre.
+func AgruparPorCategoria(servicios []sqlc.Servicio) []GrupoServicios {
+	porCategoria := map[string][]sqlc.Servicio{}
+	for _, s := range servicios {
+		porCategoria[s.Categoria] = append(porCategoria[s.Categoria], s)
+	}
+	var grupos []GrupoServicios
+	for _, c := range logic.Categorias {
+		if lista := porCategoria[c]; len(lista) > 0 {
+			grupos = append(grupos, GrupoServicios{Categoria: c, Servicios: lista})
+			delete(porCategoria, c)
+		}
+	}
+	// por si hubiera una categoría que no está en la lista
+	for c, lista := range porCategoria {
+		grupos = append(grupos, GrupoServicios{Categoria: c, Servicios: lista})
+	}
+	return grupos
+}
+
+func paginaActual(actual bool) templ.Attributes {
+	if actual {
+		return templ.Attributes{"aria-current": "page"}
+	}
+	return templ.Attributes{}
+}
+
+func inicial(nombre string) string {
+	nombre = strings.TrimSpace(nombre)
+	if nombre == "" {
+		return "?"
+	}
+	return strings.ToUpper(string([]rune(nombre)[0]))
 }

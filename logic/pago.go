@@ -104,3 +104,25 @@ func (s *ServicioPago) Eliminar(ctx context.Context, id int32) error {
 
 	return s.consultas.DeletePago(ctx, id)
 }
+
+// SuscripcionPerteneceA indica si la suscripción existe y es del usuario indicado
+func (s *ServicioPago) SuscripcionPerteneceA(ctx context.Context, idSuscripcion, idUsuario int32) (bool, error) {
+	sub, err := s.consultas.GetSubscripcion(ctx, idSuscripcion)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return sub.IDUsuario == idUsuario, nil
+}
+
+// PerteneceA indica si el pago existe y corresponde a una suscripción del usuario
+func (s *ServicioPago) PerteneceA(ctx context.Context, id, idUsuario int32) (bool, error) {
+	pago, err := s.consultas.GetPago(ctx, id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return s.SuscripcionPerteneceA(ctx, pago.IDSuscripcion, idUsuario)
+}

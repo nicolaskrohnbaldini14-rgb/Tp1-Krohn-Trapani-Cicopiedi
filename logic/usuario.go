@@ -12,13 +12,6 @@ import (
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
 
-// Tipos de cuenta: los consumidores gestionan sus suscripciones y las
-// empresas administran el catálogo de servicios.
-const (
-	TipoConsumidor = "consumidor"
-	TipoEmpresa    = "empresa"
-)
-
 // ErrCredenciales se devuelve cuando el email o la contraseña no coinciden.
 // Es el mismo mensaje en ambos casos para no revelar qué emails existen.
 var ErrCredenciales = fmt.Errorf("email o contraseña incorrectos")
@@ -68,13 +61,6 @@ func NuevoServicioUsuario(q *sqlc.Queries) *ServicioUsuario {
 func (s *ServicioUsuario) Crear(ctx context.Context, entrada sqlc.CreateUsuarioParams) (sqlc.Usuario, error) {
 	if err := validarCamposUsuario(entrada.Nombre, entrada.Email, entrada.Password); err != nil {
 		return sqlc.Usuario{}, err
-	}
-
-	if entrada.Tipo == "" {
-		entrada.Tipo = TipoConsumidor
-	}
-	if entrada.Tipo != TipoConsumidor && entrada.Tipo != TipoEmpresa {
-		return sqlc.Usuario{}, fmt.Errorf("el tipo de cuenta '%s' no es válido", entrada.Tipo)
 	}
 
 	_, err := s.consultas.GetUsuarioByEmail(ctx, entrada.Email)
@@ -176,7 +162,6 @@ func (s *ServicioUsuario) Actualizar(ctx context.Context, id int32, entrada sqlc
 		IDUsuario: id,
 		Nombre:    entrada.Nombre,
 		Email:     entrada.Email,
-		Tipo:      usuarioExistente.Tipo,
 		CreatedAt: usuarioExistente.CreatedAt,
 	}, nil
 }

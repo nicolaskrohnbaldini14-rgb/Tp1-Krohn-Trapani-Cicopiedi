@@ -1,22 +1,25 @@
 # Suscripciones+ · TP5 — Renderizado del lado del servidor con templ
 
 Aplicación web en Go para registrar suscripciones y gastos recurrentes
-(streaming, gimnasio, software, etc.). En este TP se reemplazó el frontend
-del TP4 (HTML + JavaScript que consumía una API JSON) por **vistas
+(streaming, música, software, deportes, salud, etc.). En este TP se reemplazó
+el frontend del TP4 (HTML + JavaScript que consumía una API JSON) por **vistas
 renderizadas en el servidor con [templ](https://templ.guide/)**. El acceso a
 datos sigue siendo con [sqlc](https://sqlc.dev/) sobre PostgreSQL en Docker.
 
-La entrega **no contiene archivos JavaScript**: las altas y bajas se hacen con
-formularios HTML clásicos y recargas de página completas.
+La entrega **no contiene archivos JavaScript**: todo se resuelve con HTML,
+CSS y formularios clásicos con recargas de página completas. La aplicación
+tiene las mismas funciones que la versión final del TP4:
 
-La aplicación está separada en secciones según quién la usa:
-
-- **Inicio (`/`)**: presentación, catálogo público de servicios y links a
-  **Iniciar sesión** y **Registrarse**.
-- **Consumidores**: al ingresar ven *"Hola, {nombre}"* con un resumen de su
-  gasto y dos opciones: **ver sus suscripciones** y **crear una nueva**.
-- **Empresas**: se registran desde *"¿Sos una empresa? Registrá tu empresa"*
-  (al pie de página) y son las únicas que pueden crear y borrar servicios.
+- **Inicio (`/`)**: portada centrada con los botones **Iniciar sesión** y
+  **Registrarse**.
+- **Barra superior**: el botón **Servicios ▾** abre un panel a pantalla
+  completa con el catálogo agrupado por categoría (cada una con su logo). Con
+  la sesión iniciada, cada servicio lleva a suscribirse a él.
+- **Mi cuenta**: *"Hola, {nombre}"*, cuánto vence en el mes actual y dos
+  opciones: **ver las suscripciones** o **crear una nueva**.
+- **Mis suscripciones**: las que vencen en el mes (por defecto el actual), con
+  buscador, gasto del mes, calendario con los vencimientos, links al mes
+  anterior y al siguiente, y el detalle de cada una.
 
 # Requisitos previos
 
@@ -48,9 +51,10 @@ make run-app
 
 Luego abrir <http://localhost:8080>. Para detener la aplicación: `Ctrl+C`.
 
-La base arranca vacía. Para probarla: registrar una empresa desde el link del
-pie de página y crear algunos servicios, cerrar sesión, registrarse como
-consumidor y crear suscripciones.
+Al iniciar, la aplicación precarga el catálogo de servicios (ver
+[Catálogo de servicios](#catálogo-de-servicios)). Para probarla: registrarse,
+tocar un servicio en **Servicios ▾** (o ir a *Nueva suscripción*), crear
+algunas suscripciones y verlas en *Mis suscripciones*.
 
 `make run-app` realiza todas las tareas necesarias:
 
@@ -84,86 +88,94 @@ Navegador ──(GET de páginas, POST de formularios + cookie de sesión)──
                          ◀──────────── HTML completo ──────────── views/ (templ)
 ```
 
-- **`views/`** — componentes templ (capa de presentación).
+- **`views/`** — componentes templ (capa de presentación) y funciones de
+  apoyo de las vistas (`vencimientos.go`: meses, calendario, totales).
 - **`handlers/`** — handlers HTTP (`web.go`) y sesiones (`sesiones.go`): leen
-  el formulario, verifican la sesión y el tipo de cuenta, llaman a la lógica
-  y renderizan la vista o redirigen. Reemplazan a los handlers JSON del TP3.
-- **`logic/`** — reglas de negocio de cada entidad (validaciones, unicidad,
-  existencia de claves foráneas, hash y verificación de contraseñas). Es la
-  misma capa del TP3, sin la parte HTTP.
+  el formulario, verifican la sesión, llaman a la lógica y renderizan la
+  vista o redirigen. Reemplazan a los handlers JSON del TP4.
+- **`logic/`** — reglas de negocio (validaciones, contraseñas con bcrypt,
+  catálogo precargado, renovación automática, cuentas distintas, solo
+  lectura). Es la misma lógica del TP4, sin la parte HTTP.
 - **`db/`** — esquema, queries y código generado por sqlc.
 
-## Cuentas y sesiones
+## Sesiones
 
-- La tabla `usuario` tiene una columna `tipo`: `consumidor` (por defecto) o
-  `empresa`. `/registro` crea consumidores y `/empresas/registro` crea empresas.
-- Las contraseñas se guardan **hasheadas con bcrypt**
-  (`golang.org/x/crypto/bcrypt`), nunca en texto plano.
+- Las contraseñas se guardan **hasheadas con bcrypt** (`golang.org/x/crypto/bcrypt`).
 - Al registrarse o iniciar sesión se genera un token aleatorio que se guarda en
   memoria del servidor y se envía en una cookie `HttpOnly` y `SameSite=Lax`
   llamada `sesion` (dura 24 h). Si se reinicia el servidor hay que volver a ingresar.
-- Las páginas privadas usan `soloTipo(...)`: sin sesión redirigen a `/login`
-  y con el tipo de cuenta equivocado responden `403`.
-- El usuario de una suscripción se toma de la sesión, no del formulario, y un
-  consumidor solo puede ver y borrar sus propias suscripciones.
+- Las páginas de la cuenta exigen sesión (`conSesion`): si no la hay,
+  redirigen a `/login`. El usuario de cada suscripción sale de la sesión, y
+  cada uno ve y modifica solo las suyas (las ajenas responden `404`).
+
+## Cómo se resuelve cada función sin JavaScript
+
+| Función | Cómo |
+|---|---|
+| Panel de servicios | CSS: se abre con `:hover` / `:focus-within` sobre **Servicios ▾** y queda abierto mientras el cursor esté encima. |
+| Elegir el servicio desde el formulario | *Elegir desde el catálogo* abre `?catalogo=1`, que dibuja el panel abierto en modo "elegir" con el servicio actual resaltado. |
+| Vencimientos por mes | `?mes=AAAA-MM`; el servidor filtra y arma los links al mes anterior y al siguiente. |
+| Buscador | Formulario `GET ?q=`: el servidor filtra por servicio, categoría o cuenta. |
+| Calendario | Se arma en Go (`ArmarCalendario`); el cartel de cada día marcado se muestra con CSS al pasar el cursor. |
+| Detalle de una suscripción | `?ver={id}`: el servidor dibuja el recuadro sobre la lista desenfocada; la × y el fondo son links que lo cierran. |
+| Modificar (monto, usuario y contraseña) | `?ver={id}&editar=1` muestra el formulario; `POST .../{id}/modificar`. |
+| Ver la contraseña de la cuenta | `<details>` con un formulario que pide la contraseña del usuario (`POST .../{id}/password`); el servidor la muestra solo si es correcta. |
+| Cambiar el estado / eliminar | Formularios `POST .../{id}/estado` y `POST .../{id}/eliminar`. |
+| Avisos | Después de redirigir, `?ok=creada` (etc.) muestra el aviso; los errores se muestran directamente con su código HTTP. |
 
 ## Componentes templ
 
-Se partió del `index.html` del TP4 y se lo dividió en componentes y páginas:
-
 | Archivo | Componentes | Descripción |
 |---|---|---|
-| `layout.templ` | `Layout(titulo, sesion, contenido)`, `Navegacion` | Estructura base (`<!DOCTYPE>`, `<head>`, `<body>`), link a **Pico.css** y a `static/styles.css`. La barra muestra *Iniciar sesión / Registrarse* o *Hola, {nombre} / Cerrar sesión* según la sesión. |
-| `home.templ` | `HomePage` | Inicio público con el catálogo de servicios en modo lectura. |
-| `login.templ` | `LoginPage` | Formulario de inicio de sesión. |
-| `usuario_form.templ` | `RegistroPage`, `UsuarioForm` | Registro de consumidores y de empresas. |
-| `cuenta.templ` | `CuentaPage` | *"Hola, {nombre}"*, resumen del gasto y las dos opciones del consumidor. |
-| `suscripcion_list.templ` | `MisSuscripcionesPage`, `SuscripcionList` | Tabla con las suscripciones del usuario y su gasto mensual activo. |
-| `suscripcion_form.templ` | `NuevaSuscripcionPage`, `SuscripcionForm` | Alta de suscripción. Si hay un error conserva lo ingresado (salvo la contraseña). |
-| `servicio_form.templ` | `EmpresaPage`, `ServicioForm` | Panel de empresas con el alta de servicios. |
-| `servicio_list.templ` | `ServicioList`, `CatalogoServicios` | Tabla editable (empresas) y catálogo de solo lectura (inicio). |
-| `componentes.templ` | `BotonEliminar`, `MensajeVacio`, `AvisoError`, `ErrorPage` | Componentes reutilizables y formato de montos y fechas. |
+| `layout.templ` | `Layout`, `Navegacion`, `PanelServicios` | Estructura base (`<!DOCTYPE>`, `<head>`, `<body>`) con el link a la hoja de estilos, la barra superior y el panel del catálogo. |
+| `home.templ` | `HomePage` | Portada centrada. |
+| `login.templ` | `LoginPage` | Inicio de sesión. |
+| `usuario_form.templ` | `RegistroPage`, `UsuarioForm` | Registro de usuarios. |
+| `cuenta.templ` | `CuentaPage` | *"Hola, {nombre}"*, resumen del mes y las dos opciones. |
+| `suscripcion_list.templ` | `MisSuscripcionesPage`, `ItemSuscripcion`, `Calendario`, `DetalleSuscripcion` | Lista del mes (logo de la categoría, monto, *Modificar*, estado y *Eliminar*), buscador, calendario y detalle. |
+| `suscripcion_form.templ` | `NuevaSuscripcionPage`, `SuscripcionForm` | Alta de suscripción (servicio agrupado por categoría, monto, fechas y credenciales opcionales). |
+| `componentes.templ` | `AvisoMensaje`, `VacioLista`, `IconoCategoria`, `ErrorPage` | Componentes reutilizables, íconos SVG de las categorías y formato de montos y fechas. |
 
-Cada lista muestra un mensaje cuando está vacía. Los estilos mantienen la
-paleta de la primera entrega (azul acero `#567c8d`, azul petróleo
-`#002f44`/`#004b6e` y crema `#ece6d4`) aplicada sobre Pico.css.
+Los estilos están en [`static/styles.css`](static/styles.css): la paleta de
+la primera entrega (azul acero `#567c8d`, azul petróleo `#002f44`/`#004b6e` y
+crema `#ece6d4`) con una textura de grilla suave en el fondo, layout con
+**CSS Grid** y **Flexbox**, y avisos con fondo negro.
 
 ## Rutas
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| `GET` | `/` | Público | Inicio y catálogo (usa `ListServicios` de sqlc). |
+| `GET` | `/` | Público | Portada. |
 | `GET` / `POST` | `/login` | Público | Formulario / inicio de sesión. |
-| `GET` / `POST` | `/registro` | Público | Registro de consumidores. |
-| `GET` / `POST` | `/empresas/registro` | Público | Registro de empresas. |
+| `GET` / `POST` | `/registro` | Público | Registro (deja la sesión iniciada). |
 | `POST` | `/logout` | Con sesión | Cierra la sesión. |
-| `GET` | `/cuenta` | Consumidor | *"Hola, {nombre}"* y opciones. |
-| `GET` | `/cuenta/suscripciones` | Consumidor | Sus suscripciones (`ListSubscripcionesUsuario`). |
-| `GET` | `/cuenta/suscripciones/nueva` | Consumidor | Formulario de alta. |
-| `POST` | `/cuenta/suscripciones` | Consumidor | Crea la suscripción. |
-| `POST` | `/cuenta/suscripciones/{id}/eliminar` | Consumidor | Borra una suscripción propia. |
-| `GET` | `/empresa` | Empresa | Panel con el catálogo de servicios. |
-| `POST` | `/empresa/servicios` | Empresa | Crea un servicio. |
-| `POST` | `/empresa/servicios/{id}/eliminar` | Empresa | Borra un servicio sin suscripciones. |
-| `GET` | `/static/styles.css` | Público | Hoja de estilos propia. |
-
-Los borrados usan `POST .../eliminar` porque los formularios HTML no pueden
-enviar `DELETE`.
+| `GET` | `/cuenta` | Con sesión | *"Hola, {nombre}"* y resumen del mes. |
+| `GET` | `/cuenta/suscripciones` | Con sesión | Suscripciones del mes. Parámetros: `mes`, `q` (búsqueda), `ver` (detalle), `editar`, `ok` (aviso). |
+| `GET` | `/cuenta/suscripciones/nueva` | Con sesión | Formulario de alta. Parámetros: `servicio` (preseleccionado), `catalogo=1`. |
+| `POST` | `/cuenta/suscripciones` | Con sesión | Crea la suscripción y redirige al mes en que vence. |
+| `POST` | `/cuenta/suscripciones/{id}/estado` | Con sesión | Cambia el estado (*Activa*, *Pausada*, *Cancelada*). |
+| `POST` | `/cuenta/suscripciones/{id}/modificar` | Con sesión | Modifica monto, usuario y contraseña de la cuenta. |
+| `POST` | `/cuenta/suscripciones/{id}/password` | Con sesión | Muestra la contraseña de la cuenta si se confirma la del usuario. |
+| `POST` | `/cuenta/suscripciones/{id}/eliminar` | Con sesión | Elimina la suscripción. |
+| `GET` | `/static/styles.css` | Público | Hoja de estilos (`Cache-Control: no-cache`). |
 
 ### Patrón Post/Redirect/Get
 
 Los handlers `POST` parsean el formulario (`r.ParseForm()`), convierten los
-valores (ids, montos y fechas de `<input type="date">`) y llaman al método
-`Create...`/`Delete...` correspondiente a través de la capa de lógica:
+valores (ids, montos y fechas de `<input type="date">`) y llaman a la capa de
+lógica, que usa los métodos `Create...`/`Update...`/`Delete...` de sqlc:
 
-- **Si sale bien** responden `303 See Other` (`http.Redirect`) hacia la página
-  que muestra el resultado (`/cuenta/suscripciones`, `/empresa`, etc.). El
-  navegador la pide de nuevo y se ve la lista actualizada; recargar no reenvía
-  el formulario.
-- **Si falla** se vuelve a renderizar el formulario con el mensaje de error y
-  el código HTTP correspondiente: `400` datos inválidos, `401` credenciales
-  incorrectas, `404` registro inexistente, `409` conflicto (email o nombre
-  repetido, suscripción activa duplicada, servicio con suscripciones).
+- **Si sale bien** responden `303 See Other` (`http.Redirect`) hacia la
+  página que muestra el resultado, con un `?ok=` que indica el aviso. El
+  navegador la pide de nuevo y se ve la lista actualizada; recargar no
+  reenvía el formulario.
+- **Si falla** se vuelve a renderizar la página con el mensaje de error y el
+  código HTTP correspondiente (conservando lo que se había escrito): `400`
+  datos inválidos, `401` credenciales incorrectas, `403` suscripción de solo
+  lectura o contraseña de confirmación incorrecta, `404` registro inexistente
+  o ajeno, `409` email repetido o cuenta repetida.
+- Ver la contraseña de la cuenta no redirige: la página se renderiza en la
+  respuesta del `POST`, así la contraseña nunca queda en la URL.
 
 # Documentación de persistencia
 
@@ -172,9 +184,9 @@ El modelo de datos está compuesto por 4 tablas relacionales, definidas en
 
 | Tabla | Descripción |
 |---|---|
-| `usuario` | Cuenta de la persona o empresa que usa la app (nombre, email, contraseña hasheada y `tipo`: `consumidor` o `empresa`). |
-| `servicio` | Catálogo de servicios disponibles (nombre + categoría), normalizado para poder agrupar el gasto por categoría. |
-| `suscripcion` | Relaciona un `usuario` con un `servicio`: monto, fecha de inicio, fecha de vencimiento, credenciales de acceso al servicio (usuario/contraseña de esa cuenta) y estado (activa/pausada/cancelada). |
+| `usuario` | Cuenta de la persona que usa la app (nombre, email y contraseña hasheada con bcrypt). |
+| `servicio` | Catálogo de servicios disponibles (nombre + categoría), normalizado para poder agrupar el gasto por categoría. Se precarga al iniciar la app. |
+| `suscripcion` | Relaciona un `usuario` con un `servicio`: monto, fecha de inicio, fecha de vencimiento, credenciales de acceso al servicio (usuario/contraseña de esa cuenta, **opcionales**: pueden ser `NULL`) y estado (`Activa`, `Pausada`, `Cancelada` o `Vencida`). |
 | `pago` | Historial real de cobros de una suscripción. Permite calcular el gasto efectivo mes a mes, no solo el proyectado. |
 
 **Relaciones:**
@@ -186,25 +198,50 @@ El modelo de datos está compuesto por 4 tablas relacionales, definidas en
 - `pago.id_suscripcion` → `suscripcion.id_suscripcion` (`ON DELETE CASCADE`)
 
 El acceso a datos se genera con sqlc a partir de
-[`db/queries/queries.sql`](db/queries/queries.sql). `CreateUsuario` ahora
-recibe el `tipo` de cuenta, y el login usa `GetUsuarioByEmail` para comparar el
-hash de la contraseña. La tabla `pago` y su lógica se mantienen del TP3, pero
-la interfaz de este TP no los muestra.
+[`db/queries/queries.sql`](db/queries/queries.sql). Las credenciales de la
+cuenta son `*string` en Go (override en `sqlc.yaml`) para poder ser `NULL`.
+Además de las queries CRUD hay:
 
-El código generado (`db/sqlc/`) y los `*_templ.go` **no se versionan**: se
-regeneran con `make generate` (incluido en `make run-app`).
+- `CrearServicioSiNoExiste`: precarga el catálogo sin duplicar.
+- `ListSuscripcionesVigentes`: suscripciones activas o pausadas de un usuario
+  a un servicio (para exigir cuentas distintas).
+- `ListSuscripcionesParaRenovar` y `RenovarSuscripcion`: renovación automática
+  en una sola sentencia SQL atómica.
+
+La tabla `pago` y su lógica se mantienen del TP3, pero la interfaz no los
+muestra. El código generado (`db/sqlc/`) y los `*_templ.go` **no se
+versionan**: se regeneran con `make generate` (incluido en `make run-app`).
+
+## Catálogo de servicios
+
+Al iniciar, `main.go` llama a `CargarCatalogoInicial` (`logic/servicio.go`),
+que inserta los servicios que todavía no existan. No se pueden crear ni
+borrar servicios desde la aplicación.
+
+| Categoría | Servicios |
+|---|---|
+| Streaming | Netflix, HBO Max, Disney+, Prime Video, Paramount+, Star+, YouTube Premium |
+| Música | Spotify, iTunes, YouTube Music, Deezer, Tidal |
+| Software | Microsoft 365, Google One, iCloud+, Adobe Creative Cloud, ChatGPT Plus, Canva Pro, Dropbox |
+| Deportes | Gimnasio, Pádel, Fútbol, Tenis, Natación, Yoga, Crossfit, Club deportivo |
+| Salud | OSDE, Swiss Medical, Galeno, Medifé, Sancor Salud, Omint |
+| Financiero | Seguro de auto, Seguro de hogar, Seguro de vida, Mantenimiento de cuenta bancaria, Cuota de préstamo |
+| Turismo | Aerolíneas Plus, Despegar, Booking.com, Airbnb |
+| Otros | Internet hogar, Telefonía celular, Mercado Libre Meli+, Rappi Pro, PedidosYa Plus |
 
 # Reglas de negocio
 
 - **Usuarios:** nombre, email y password son obligatorios. El email tiene que tener un formato válido y no puede repetirse. La password se guarda hasheada y nunca se muestra.
-- **Acceso:** solo las empresas crean y borran servicios; solo los consumidores crean suscripciones, y cada uno ve y borra únicamente las suyas.
-- **Servicios:** el nombre es único. La categoría debe ser una de `Streaming`, `Música`, `Software`, `Gimnasio`, `Salud`, `Financiero`, `Turismo` u `Otros`. No se puede borrar un servicio que tenga suscripciones.
+- **Acceso:** cada usuario ve y modifica únicamente sus propias suscripciones.
+- **Servicios:** el catálogo viene precargado y es de solo lectura.
 - **Suscripciones:**
-  - El usuario y el servicio tienen que existir.
-  - El monto tiene que ser mayor a cero y la fecha de inicio anterior a la de vencimiento.
-  - El estado es `Activa` (por defecto), `Pausada` o `Cancelada`.
-  - Un usuario no puede tener dos suscripciones activas al mismo servicio.
-  - La contraseña de la cuenta nunca se muestra.
+  - El servicio tiene que existir; el monto tiene que ser mayor a cero y la fecha de inicio anterior a la de vencimiento.
+  - Se crean siempre en estado `Activa`; después se pueden pasar a `Pausada` o `Cancelada` (y reactivar).
+  - Usuario y contraseña de la cuenta del servicio son opcionales (un gimnasio o una cancha de pádel no tienen cuenta). La contraseña nunca se muestra salvo que el usuario confirme la suya.
+  - Se puede tener **varias suscripciones al mismo servicio** si son cuentas distintas: desde la segunda (mientras la otra siga activa o pausada) hay que indicar el usuario de la cuenta, y no se puede repetir uno en uso (sin distinguir mayúsculas).
+  - **Renovación automática:** cuando una suscripción activa vence, se renueva sola por el mismo plazo con el que se registró (un mes, un año, etc.). El período vencido queda como historial con estado `Vencida` y se crea uno nuevo con el mismo monto y la misma cuenta. Se hace al iniciar la app y cada vez que se listan las suscripciones. Las pausadas y canceladas no se renuevan.
+  - Las suscripciones `Vencida` y las que vencen en un mes anterior al actual son de **solo lectura**.
+  - El *gasto mensual activo* suma las suscripciones activas del mes y los períodos que ya se renovaron.
 - **Pagos:** la suscripción tiene que existir, el monto tiene que ser mayor a cero y la fecha de pago no puede ser posterior al vencimiento de la suscripción.
 
 # Pruebas
@@ -212,36 +249,35 @@ regeneran con `make generate` (incluido en `make run-app`).
 `make` (o `make test-api`) corre:
 
 1. **Tests de Go** (`go test ./...`):
-   - `main_test.go`: CRUD de cada tabla con sqlc contra PostgreSQL en Docker.
+   - `main_test.go`: CRUD de cada tabla con sqlc contra PostgreSQL en Docker
+     (incluida una suscripción sin credenciales).
+   - `logic/renovacion_test.go`: cálculo del plazo de renovación, regla de
+     solo lectura y comparación de cuentas.
    - `views/views_test.go`: renderiza los componentes templ sin base de datos
-     (links según la sesión, que el inicio no permita crear servicios, datos
-     conservados en el formulario, formato de montos/fechas, escape de HTML).
+     (panel de servicios, lista editable y de solo lectura, detalle,
+     formulario con datos conservados, calendario, meses, escape de HTML).
 2. **Pruebas Hurl** (`hurl/`): navegan la aplicación como lo haría el
    navegador (Hurl guarda las cookies de sesión entre pedidos) y verifican
    redirecciones, el HTML con consultas XPath y los códigos de error.
 
 | Archivo | Qué prueba |
 |---|---|
-| `publico.hurl` | Inicio, login y registro; sin sesión las páginas privadas redirigen a `/login`. |
-| `cuentas.hurl` | Registro, *"Hola, {nombre}"*, logout, login correcto e incorrecto, validaciones, `403` de un consumidor en el panel de empresas. |
-| `empresa.hurl` | Registro de empresa y ABM de servicios. |
-| `suscripcion.hurl` | Alta y baja de suscripciones, validaciones, que otro consumidor no pueda borrarlas y que no se pueda borrar un servicio con suscripciones. |
-
-
-
+| `publico.hurl` | Portada sin JavaScript, panel con las 8 categorías y sus logos, login y registro, redirección a `/login` sin sesión, `Cache-Control` del CSS. |
+| `cuentas.hurl` | Registro con aviso de bienvenida, *"Hola, {nombre}"*, logout, login correcto e incorrecto y validaciones. |
+| `suscripcion.hurl` | Alta (y validaciones), varias cuentas por servicio, detalle, ver la contraseña, modificar monto/usuario/contraseña, estados, buscador, renovación automática, meses anteriores de solo lectura, eliminar y suscripciones ajenas. |
 
 # Estructura del proyecto
 
 ```
 .
-├── main.go                 # Conexión a la base, armado del mux y servidor HTTP
+├── main.go                 # Conexión, catálogo, renovación y servidor HTTP
 ├── main_test.go            # Tests de integración de sqlc
 ├── handlers/
-│   ├── web.go              # Rutas, control de acceso y handlers HTML
+│   ├── web.go              # Rutas, sesión y handlers HTML
 │   └── sesiones.go         # Sesiones con cookie HttpOnly
-├── logic/                  # Reglas de negocio de cada entidad
-├── views/                  # Componentes templ + views_test.go
-├── static/styles.css       # Ajustes de estilo sobre Pico.css
+├── logic/                  # Reglas de negocio (+ renovacion.go y sus tests)
+├── views/                  # Componentes templ, vencimientos.go y views_test.go
+├── static/styles.css       # Estilos (sin JavaScript)
 ├── db/
 │   ├── schema/schema.sql
 │   ├── queries/queries.sql

@@ -1,36 +1,21 @@
 package views
 
-import "tp2-krohn-trapani-cicopiedi/db/sqlc"
-
-// HomePage es la portada pública: presenta la aplicación, lleva a iniciar
-// sesión o registrarse y muestra el catálogo de servicios (solo lectura).
-templ HomePage(sesion *Sesion, servicios []sqlc.Servicio) {
-	@Layout("Inicio", sesion, contenidoHome(sesion, servicios))
+// HomePage es la portada pública, centrada en la pantalla
+templ HomePage(p Pagina) {
+	@Layout(p, contenidoHome(p.Sesion))
 }
 
-templ contenidoHome(sesion *Sesion, servicios []sqlc.Servicio) {
+templ contenidoHome(sesion *Sesion) {
 	<section class="portada">
 		<h1>Suscripciones+</h1>
 		<p class="lema">¡Todos tus servicios, en el mismo lugar!</p>
-		<p class="descripcion">
-			Registrá tus suscripciones y gastos recurrentes —streaming, gimnasio,
-			software, seguros y todo lo que pagás mes a mes— y visualizá cuánto
-			gastás en total.
-		</p>
 		<div class="acciones">
-			switch {
-				case sesion.EsConsumidor():
-					<a href="/cuenta" role="button">Ir a mi cuenta</a>
-				case sesion.EsEmpresa():
-					<a href="/empresa" role="button">Ir a mis servicios</a>
-				default:
-					<a href="/login" role="button">Iniciar sesión</a>
-					<a href="/registro" role="button" class="secondary">Registrarse</a>
+			if sesion == nil {
+				<a href="/login" class="boton">Iniciar sesión</a>
+				<a href="/registro" class="boton boton-claro">Registrarse</a>
+			} else {
+				<a href="/cuenta" class="boton">Ir a mi cuenta</a>
 			}
 		</div>
-	</section>
-	<section id="servicios-disponibles">
-		<h2>Servicios disponibles</h2>
-		@CatalogoServicios(servicios)
 	</section>
 }

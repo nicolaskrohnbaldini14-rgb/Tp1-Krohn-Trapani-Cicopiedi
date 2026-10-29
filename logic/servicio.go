@@ -4,38 +4,25 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 )
 
-// Categorías predefinidas según la regla de negocio (no texto libre).
-// El slice mantiene el orden para mostrarlas en el formulario.
-var Categorias = []string{"Streaming", "Música", "Software", "Gimnasio", "Salud", "Financiero", "Turismo", "Otros"}
+// Categorías del catálogo, en el orden en que se cargan
+var Categorias = []string{"Streaming", "Música", "Software", "Deportes", "Salud", "Financiero", "Turismo", "Otros"}
 
-var categoriasValidas = func() map[string]bool {
-	validas := make(map[string]bool, len(Categorias))
-	for _, c := range Categorias {
-		validas[c] = true
-	}
-	return validas
-}()
-
-func validarCamposServicio(datos sqlc.CreateServicioParams) error {
-	nom := strings.TrimSpace(datos.Nombre)
-	cat := strings.TrimSpace(datos.Categoria)
-
-	if nom == "" {
-		return fmt.Errorf("el nombre del servicio es obligatorio")
-	}
-	if cat == "" {
-		return fmt.Errorf("la categoría es obligatorio")
-	}
-	if !categoriasValidas[cat] {
-		return fmt.Errorf("la categoría '%s' no es válida (permitidas: Streaming, Música, Software, Gimnasio,Salud,Financiero,Turismo Otros)", cat)
-	}
-
-	return nil
+// CatalogoInicial son los servicios que se precargan al iniciar la aplicación.
+// Los usuarios eligen de este catálogo al crear una suscripción; no se pueden
+// agregar ni borrar servicios desde la API.
+var CatalogoInicial = map[string][]string{
+	"Streaming":  {"Netflix", "HBO Max", "Disney+", "Prime Video", "Paramount+", "Star+", "YouTube Premium"},
+	"Música":     {"Spotify", "iTunes", "YouTube Music", "Deezer", "Tidal"},
+	"Software":   {"Microsoft 365", "Google One", "iCloud+", "Adobe Creative Cloud", "ChatGPT Plus", "Canva Pro", "Dropbox"},
+	"Deportes":   {"Gimnasio", "Pádel", "Fútbol", "Tenis", "Natación", "Yoga", "Crossfit", "Club deportivo"},
+	"Salud":      {"OSDE", "Swiss Medical", "Galeno", "Medifé", "Sancor Salud", "Omint"},
+	"Financiero": {"Seguro de auto", "Seguro de hogar", "Seguro de vida", "Mantenimiento de cuenta bancaria", "Cuota de préstamo"},
+	"Turismo":    {"Aerolíneas Plus", "Despegar", "Booking.com", "Airbnb"},
+	"Otros":      {"Internet hogar", "Telefonía celular", "Mercado Libre Meli+", "Rappi Pro", "PedidosYa Plus"},
 }
 
 type ServicioServicio struct {
@@ -46,21 +33,21 @@ func NuevoServicioServicio(q *sqlc.Queries) *ServicioServicio {
 	return &ServicioServicio{consultas: q}
 }
 
-// Crear valida la categoría y comprueba que el nombre sea único
-func (s *ServicioServicio) Crear(ctx context.Context, entrada sqlc.CreateServicioParams) (sqlc.Servicio, error) {
-	if err := validarCamposServicio(entrada); err != nil {
-		return sqlc.Servicio{}, err
+// CargarCatalogoInicial inserta los servicios precargados que todavía no
+// existan. Se puede llamar en cada arranque sin duplicar nada.
+func (s *ServicioServicio) CargarCatalogoInicial(ctx context.Context) error {
+	for _, categoria := range Categorias {
+		for _, nombre := range CatalogoInicial[categoria] {
+			err := s.consultas.CrearServicioSiNoExiste(ctx, sqlc.CrearServicioSiNoExisteParams{
+				Nombre:    nombre,
+				Categoria: categoria,
+			})
+			if err != nil {
+				return fmt.Errorf("no se pudo cargar el servicio %q: %w", nombre, err)
+			}
+		}
 	}
-
-	// Regla Miro: El nombre debe ser único
-	_, err := s.consultas.GetServicioByNombre(ctx, entrada.Nombre)
-	if err == nil {
-		return sqlc.Servicio{}, fmt.Errorf("ya existe un servicio con el nombre '%s'", entrada.Nombre)
-	} else if err != sql.ErrNoRows {
-		return sqlc.Servicio{}, err
-	}
-
-	return s.consultas.CreateServicio(ctx, entrada)
+	return nil
 }
 
 // ObtenerPorID busca un servicio por id_servicio
@@ -77,69 +64,4 @@ func (s *ServicioServicio) ObtenerPorID(ctx context.Context, id int32) (sqlc.Ser
 // Listar obtiene la lista de todos los servicios
 func (s *ServicioServicio) Listar(ctx context.Context) ([]sqlc.Servicio, error) {
 	return s.consultas.ListServicios(ctx)
-}
-
-// Actualizar modifica el nombre manteniendo la restricción de unicidad y no permitiendo cambiar la categoría
-func (s *ServicioServicio) Actualizar(ctx context.Context, id int32, entrada sqlc.UpdateServicioParams) (sqlc.Servicio, error) {
-	if strings.TrimSpace(entrada.Nombre) == "" {
-		return sqlc.Servicio{}, fmt.Errorf("el nombre del servicio es obligatorio")
-	}
-
-	servicioExistente, err := s.consultas.GetServicio(ctx, id)
-	if err == sql.ErrNoRows {
-		return sqlc.Servicio{}, fmt.Errorf("servicio no encontrado")
-	} else if err != nil {
-		return sqlc.Servicio{}, err
-	}
-
-	if entrada.Categoria != "" && entrada.Categoria != servicioExistente.Categoria {
-		return sqlc.Servicio{}, fmt.Errorf("no se permite modificar la categoría del servicio")
-	}
-
-	if entrada.Nombre != servicioExistente.Nombre {
-		existente, err := s.consultas.GetServicioByNombre(ctx, entrada.Nombre)
-		if err == nil && existente.IDServicio != id {
-			return sqlc.Servicio{}, fmt.Errorf("ya existe otro servicio registrado con el nombre '%s'", entrada.Nombre)
-		} else if err != nil && err != sql.ErrNoRows {
-			return sqlc.Servicio{}, err
-		}
-	}
-
-	// el id siempre viene de la URL y la categoría se mantiene la existente
-	entrada.IDServicio = id
-	entrada.Categoria = servicioExistente.Categoria
-
-	if err := s.consultas.UpdateServicio(ctx, entrada); err != nil {
-		return sqlc.Servicio{}, err
-	}
-
-	return sqlc.Servicio{
-		IDServicio: id,
-		Nombre:     entrada.Nombre,
-		Categoria:  servicioExistente.Categoria,
-		CreatedAt:  servicioExistente.CreatedAt,
-	}, nil
-}
-
-// Eliminar quita un servicio verificando que no tenga suscripciones asociadas
-func (s *ServicioServicio) Eliminar(ctx context.Context, id int32) error {
-	_, err := s.consultas.GetServicio(ctx, id)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("servicio no encontrado")
-	} else if err != nil {
-		return err
-	}
-
-	//preguntar estoo si estabien o dejamos que lo haga la base sola
-	// No se puede eliminar si tiene suscripciones asociadas, esto lo hacemos para que no nos devuelva un error
-	// genérico en la base de datos y sí un error conocido de lógica que es el 409
-	cantidadSubs, err := s.consultas.CountSuscripcionesByServicio(ctx, id)
-	if err != nil {
-		return err
-	}
-	if cantidadSubs > 0 {
-		return fmt.Errorf("no se puede eliminar el servicio porque tiene suscripciones asociadas")
-	}
-
-	return s.consultas.DeleteServicio(ctx, id)
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"tp2-krohn-trapani-cicopiedi/db/sqlc"
 	"tp2-krohn-trapani-cicopiedi/handlers"
+	"tp2-krohn-trapani-cicopiedi/logic"
 )
 
 func main() {
@@ -30,11 +32,25 @@ func main() {
 	// 2. Capa de datos (sqlc)
 	queries := sqlc.New(dbConn)
 
-	// 3. Handlers que renderizan las vistas templ (la lógica de negocio sigue en logic/)
+	// 3. Catálogo de servicios precargado (no duplica si ya existe)
+	ctx := context.Background()
+	if err := logic.NuevoServicioServicio(queries).CargarCatalogoInicial(ctx); err != nil {
+		log.Fatalf("Error al precargar el catálogo de servicios: %v", err)
+	}
+	log.Println("Catálogo de servicios precargado")
+
+	// las suscripciones activas que ya vencieron se renuevan por el mismo plazo
+	if renovadas, err := logic.NuevoServicioSuscripcion(queries).RenovarVencidas(ctx); err != nil {
+		log.Fatalf("Error al renovar suscripciones vencidas: %v", err)
+	} else if renovadas > 0 {
+		log.Printf("Suscripciones renovadas: %d", renovadas)
+	}
+
+	// 4. Handlers que renderizan las vistas templ (la lógica de negocio sigue en logic/)
 	mux := http.NewServeMux()
 	handlers.NuevoWeb(queries, handlers.NuevasSesiones()).Registrar(mux)
 
-	// 4. Servidor HTTP
+	// 5. Servidor HTTP
 	log.Println("Servidor escuchando en http://localhost:8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatalf("Error al iniciar el servidor HTTP: %v", err)

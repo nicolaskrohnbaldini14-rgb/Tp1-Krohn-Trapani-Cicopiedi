@@ -1,195 +1,485 @@
-/*
- * Ajustes sobre Pico.css con la paleta de la primera entrega:
- *   fondo azul acero #567c8d, azul petróleo #002f44 / #004b6e y crema #ece6d4.
- */
-
-:root[data-theme="light"] {
-  --azul-acero: #567c8d;
-  --azul-oscuro: #002f44;
-  --azul-medio: #004b6e;
+/* Paleta de la primera entrega: azul acero, azul petróleo y crema */
+:root {
+  --fondo: #567c8d;
+  --tarjeta: #ece6d4;
+  --campo: #f7f3e8;
+  --texto: #002f44;
+  --suave: #4a6672;
+  --primario: #004b6e;
+  --primario-oscuro: #002f44;
   --crema: #ece6d4;
-  --crema-claro: #f7f3e8;
+  --peligro: #9b2c2c;
+  --exito: #1e6b3a;
+  --borde: #cfc5a8;
+}
 
-  --pico-font-family: "Gill Sans", "Gill Sans MT", Calibri, "Trebuchet MS", sans-serif;
-  --pico-background-color: var(--azul-acero);
-  --pico-color: var(--azul-oscuro);
-  --pico-h1-color: var(--azul-oscuro);
-  --pico-h2-color: var(--crema);
-  --pico-muted-color: #4a6672;
+* {
+  box-sizing: border-box;
+}
 
-  --pico-primary: var(--azul-medio);
-  --pico-primary-background: var(--azul-medio);
-  --pico-primary-border: var(--azul-medio);
-  --pico-primary-underline: rgba(0, 75, 110, 0.5);
-  --pico-primary-hover: var(--azul-oscuro);
-  --pico-primary-hover-background: var(--azul-oscuro);
-  --pico-primary-hover-border: var(--azul-oscuro);
-  --pico-primary-focus: rgba(0, 75, 110, 0.35);
+/* que "hidden" oculte siempre, aunque la clase defina un display */
+[hidden] {
+  display: none !important;
+}
 
-  --pico-card-background-color: var(--crema);
-  --pico-card-sectioning-background-color: #e2dac4;
-  --pico-form-element-background-color: var(--crema-claro);
-  --pico-form-element-border-color: #b9ae92;
-  --pico-form-element-focus-color: var(--azul-medio);
-  --pico-table-border-color: #d3c9ad;
-  --pico-table-row-stripped-background-color: #e5ddc8;
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: "Gill Sans", "Gill Sans MT", Calibri, "Trebuchet MS", sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
 }
 
 h1,
-h2,
-article > header {
+h2 {
   font-family: Verdana, Geneva, Tahoma, sans-serif;
 }
 
-/* ---------- Barra de navegación ---------- */
+a {
+  color: var(--primario-oscuro);
+}
+
+/* ---------- Barra de navegación (Flexbox) ---------- */
 
 .barra {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px 32px;
+  /* la barra va de margen a margen de la pantalla */
+  margin: 0;
+  padding: 40px 40px 28px;
   border-bottom: 1px solid rgba(236, 230, 212, 0.35);
-  margin-bottom: 1.5rem;
 }
 
-/* en pantallas angostas la marca queda arriba y los links debajo */
-@media (max-width: 768px) {
-  .barra {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .barra ul {
-    flex-wrap: wrap;
-  }
-}
-
-.barra a,
-.saludo {
-  color: var(--crema);
-}
-
-.barra a.marca {
+.marca {
   font-family: Verdana, Geneva, Tahoma, sans-serif;
-  font-weight: bold;
   font-size: 1.4rem;
-  color: var(--azul-oscuro);
+  font-weight: bold;
+  text-decoration: none;
+  color: var(--primario-oscuro);
 }
 
-.barra a[role="button"] {
+#navegacion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 22px;
+}
+
+#navegacion a {
   color: var(--crema);
+  text-decoration: none;
 }
 
-.saludo {
+/* cada opción de la barra es una "pastilla" */
+.nav-item,
+#navegacion a.nav-item {
+  padding: 8px 18px;
+  border: 1px solid rgba(236, 230, 212, 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--crema);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.nav-item:hover,
+#navegacion a.nav-item:hover {
+  background: rgba(236, 230, 212, 0.18);
+}
+
+/* con sesión: las opciones tienen fondo propio y la página actual se resalta */
+#navegacion.con-sesion .nav-item {
+  background: rgba(0, 47, 68, 0.35);
+  border-color: transparent;
+}
+
+#navegacion.con-sesion .nav-item:hover {
+  background: rgba(0, 47, 68, 0.6);
+}
+
+#navegacion.con-sesion a.nav-item.activo {
+  background: var(--crema);
+  color: var(--primario-oscuro);
   font-weight: bold;
 }
 
-.form-salir {
-  margin: 0;
+/* línea que separa las opciones del usuario */
+.nav-separador {
+  width: 1px;
+  height: 32px;
+  margin: 0 6px;
+  background: rgba(236, 230, 212, 0.45);
 }
 
-.form-salir button {
-  margin: 0;
-  padding: 0.35rem 0.8rem;
+/* el usuario: inicial en un círculo + saludo */
+#navegacion a.usuario-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--crema);
-  border-color: var(--crema);
+  font-weight: bold;
 }
 
-.form-salir button:hover {
-  background-color: var(--crema);
-  color: var(--azul-oscuro);
+#navegacion a.usuario-chip:hover {
+  text-decoration: underline;
 }
 
-/* ---------- Portada (home) ---------- */
+.usuario-inicial {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--crema);
+  color: var(--primario-oscuro);
+}
+
+.boton-salir {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--crema);
+  color: var(--crema);
+}
+
+.boton-salir:hover {
+  background: var(--crema);
+  color: var(--primario-oscuro);
+}
+
+/* enlaces con aspecto de botón */
+.boton,
+#navegacion a.boton {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--primario);
+  color: var(--crema);
+  text-decoration: none;
+  text-align: center;
+}
+
+.boton:hover,
+#navegacion a.boton:hover {
+  background: var(--primario-oscuro);
+  text-decoration: none;
+}
+
+.boton-claro {
+  background: var(--crema);
+  color: var(--primario-oscuro);
+}
+
+.boton-claro:hover {
+  background: var(--campo);
+}
+
+/* el contenido ocupa el espacio entre la barra y el pie y queda centrado
+   en vertical; si es más alto que la pantalla, empieza arriba como siempre */
+.contenido {
+  flex: 1;
+  width: 100%;
+  max-width: 1280px;
+  margin: 48px auto;
+  padding: 0 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.contenido > h1,
+.bienvenida h1,
+.titulo-con-accion h1 {
+  color: var(--primario-oscuro);
+}
+
+/* ---------- Portada (home): centrada en la pantalla ---------- */
+
+/* textura de grilla en todas las pantallas: líneas finas cada 8px, una
+   grilla más marcada cada 80px y una cruz en cada cruce, en el tono crema y
+   con poca opacidad para que se mezcle con el azul de fondo */
+body {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><defs><pattern id='g' width='8' height='8' patternUnits='userSpaceOnUse'><path d='M8 0H0V8' fill='none' stroke='%23ece6d4' stroke-opacity='0.05' stroke-width='1'/></pattern></defs><rect width='80' height='80' fill='url(%23g)'/><path d='M80 0V80M0 80H80' fill='none' stroke='%23ece6d4' stroke-opacity='0.08' stroke-width='1'/><path d='M80 74V86M74 80H86M0 74V86M-6 80H6M80 -6V6M74 0H86M0 -6V6M-6 0H6' stroke='%23ece6d4' stroke-opacity='0.35' stroke-width='1'/></svg>");
+  background-position: -1px -1px;
+}
+
+body[data-pagina="inicio"] .contenido {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .portada {
   text-align: center;
-  padding: 2rem 0 1rem;
 }
 
 .portada h1 {
+  margin: 0 0 8px;
   font-size: clamp(2.8rem, 10vw, 5.5rem);
-  margin-bottom: 0.5rem;
+  color: var(--primario-oscuro);
 }
 
 .lema {
+  margin: 0;
   font-family: Verdana, Geneva, Tahoma, sans-serif;
   font-size: 1.3rem;
-  color: var(--azul-medio);
   font-weight: bold;
+  color: var(--primario);
 }
 
-.descripcion {
-  max-width: 46rem;
-  margin: 1.5rem auto 2rem;
-  font-size: 1.25rem;
-  line-height: 1.8;
-  color: var(--crema);
+.portada .acciones {
+  margin-top: 32px;
 }
 
 .acciones {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 1rem;
+  gap: 16px;
 }
 
-.acciones a[role="button"] {
+.acciones .boton {
   min-width: 11rem;
 }
 
-.acciones a.secondary {
-  background-color: var(--crema);
-  border-color: var(--crema);
-  color: var(--azul-oscuro);
+section > h2 {
+  color: var(--crema);
 }
 
-.catalogo {
-  list-style: none;
+/* ---------- Panel de servicios (ocupa toda la pantalla debajo de la barra) ---------- */
+
+.desplegable-boton[aria-expanded="true"] {
+  background: var(--crema);
+  color: var(--primario-oscuro);
+}
+
+#navegacion.con-sesion .desplegable-boton[aria-expanded="true"] {
+  background: var(--crema);
+}
+
+.panel-servicios {
+  position: fixed;
+  top: var(--alto-barra, 70px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  overflow-y: auto;
+  padding: 24px 16px;
+  background: rgba(0, 47, 68, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: aparecer 0.15s ease-out;
+}
+
+.panel-servicios-contenido {
+  max-width: 1280px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--tarjeta);
+  color: var(--texto);
+  box-shadow: 0 20px 50px rgba(0, 47, 68, 0.45);
+}
+
+.panel-servicios-encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.panel-servicios-encabezado h2 {
+  margin: 0 0 4px;
+  color: var(--primario-oscuro);
+}
+
+.panel-servicios-ayuda {
+  margin: 0;
+  color: var(--suave);
+}
+
+#navegacion .panel-servicios-ayuda a {
+  color: var(--primario);
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.panel-servicios-cerrar {
+  width: 36px;
+  height: 36px;
   padding: 0;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--primario);
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.panel-servicios-cerrar:hover {
+  background: var(--campo);
+}
+
+/* una columna por categoría */
+.panel-servicios-grilla {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
-  gap: 1rem;
+  gap: 20px;
 }
 
-.catalogo li {
-  list-style: none;
+.panel-categoria h3 {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.4rem;
-  padding: 1rem;
-  border-radius: var(--pico-border-radius);
-  background-color: var(--crema);
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--fondo);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primario);
+}
+
+/* logo de cada categoría al lado del título */
+.icono-categoria {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--primario);
+  color: var(--crema);
+}
+
+.icono-categoria svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* en la lista de suscripciones el logo es un poco más grande */
+.item .icono-categoria {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.item .icono-categoria svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* las suscripciones de solo lectura llevan el logo más apagado */
+.item-solo-lectura .icono-categoria {
+  background: var(--suave);
+}
+
+/* que el texto de la suscripción ocupe el espacio libre junto al logo */
+.item .item-info {
+  flex: 1;
+}
+
+.panel-categoria ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel-servicio {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--texto);
+}
+
+/* con sesión, cada servicio es un link para suscribirse */
+#navegacion a.panel-servicio {
+  color: var(--texto);
+}
+
+#navegacion a.panel-servicio:hover,
+#navegacion a.panel-servicio:focus-visible {
+  background: var(--primario);
+  color: var(--crema);
+}
+
+#navegacion a.panel-servicio:hover::after {
+  content: " · Suscribirme →";
+  font-size: 0.8rem;
+}
+
+#navegacion .modo-elegir a.panel-servicio:hover::after {
+  content: " · Elegir";
+}
+
+/* el servicio que ya estaba elegido en el formulario */
+#navegacion a.panel-servicio.elegido {
+  background: var(--fondo);
+  color: var(--crema);
+  font-weight: bold;
+}
+
+/* el selector de servicio abre el panel a pantalla completa */
+.select-con-panel {
+  cursor: pointer;
+}
+
+/* ---------- Login y registro ---------- */
+
+.tarjeta-chica {
+  max-width: 28rem;
+  margin: 16px auto;
+}
+
+.ayuda {
+  color: var(--suave);
 }
 
 /* ---------- Cuenta del consumidor ---------- */
 
-h1 {
-  color: var(--azul-oscuro);
-}
-
 .bienvenida {
-  margin-bottom: 1.5rem;
+  margin-bottom: 32px;
 }
 
-.opciones a.opcion {
-  text-decoration: none;
+.bienvenida h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+}
+
+/* "En octubre de 2026 vencen ... · $ ..." */
+.bienvenida .lema {
+  font-size: clamp(1.3rem, 2.6vw, 1.9rem);
+}
+
+.opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 24px;
+}
+
+.opcion {
   color: inherit;
-}
-
-.opciones article {
-  height: 100%;
+  text-decoration: none;
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
-.opciones a.opcion:hover article {
+.opcion:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 16px rgba(0, 47, 68, 0.35);
 }
 
-.opciones h3 {
-  color: var(--azul-medio);
-}
-
-.sin-corte {
-  white-space: nowrap;
+.opcion h3 {
+  margin-top: 0;
+  color: var(--primario);
 }
 
 .titulo-con-accion {
@@ -197,131 +487,795 @@ h1 {
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .titulo-con-accion h1 {
   margin: 0;
 }
 
-/* ---------- Formularios de login y registro ---------- */
+/* ---------- Vencimientos del mes: lista + calendario al costado ---------- */
 
-.tarjeta-chica {
-  max-width: 28rem;
-  margin: 1rem auto;
+.titulo-con-accion .lema {
+  margin-top: 4px;
 }
 
-.ayuda {
-  color: var(--pico-muted-color);
-}
-
-section {
-  margin-bottom: 2.5rem;
-}
-
-article > header {
-  font-weight: bold;
-  color: var(--azul-medio);
-}
-
-/* las dos tarjetas de cada sección se alinean arriba y la lista ocupa más ancho */
-.panel {
+.vencimientos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 24px;
   align-items: start;
 }
 
-@media (min-width: 768px) {
-  .panel {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+.navegacion-meses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+}
+
+.navegacion-meses a {
+  color: var(--primario);
+  font-weight: bold;
+}
+
+/* el link al mes siguiente queda a la derecha aunque sea el único */
+#mes-siguiente {
+  margin-left: auto;
+}
+
+.calendario h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+/* "octubre de 2026" → "Octubre de 2026" */
+.calendario h2::first-letter {
+  text-transform: uppercase;
+}
+
+.calendario-grilla {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-semana {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--suave);
+}
+
+.cal-dia {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: var(--campo);
+}
+
+.cal-hoy {
+  outline: 2px solid var(--primario);
+  font-weight: bold;
+}
+
+.cal-con-vencimiento {
+  background: var(--primario);
+  color: var(--crema);
+  font-weight: bold;
+  cursor: default;
+}
+
+/* pin que marca el día de vencimiento */
+.cal-pin {
+  width: 6px;
+  height: 6px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: #f2b84b;
+}
+
+/* cartel con los servicios que vencen ese día */
+.cal-cartel {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  min-width: 11rem;
+  padding: 8px 10px;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 8px;
+  background: var(--primario-oscuro);
+  color: var(--crema);
+  font-size: 0.8rem;
+  font-weight: normal;
+  text-align: left;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.cal-izquierda .cal-cartel {
+  left: 0;
+  transform: none;
+}
+
+.cal-derecha .cal-cartel {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.cal-con-vencimiento:hover .cal-cartel,
+.cal-con-vencimiento:focus .cal-cartel {
+  display: flex;
+}
+
+.calendario-ayuda {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--suave);
+}
+
+/* ---------- Detalle de una suscripción (modal) ---------- */
+
+.item-abrible {
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.item-abrible:hover,
+.item-abrible:focus-visible {
+  background: var(--campo);
+  transform: translateY(-1px);
+}
+
+.item-abrible .item-detalle {
+  font-style: italic;
+}
+
+.detalle {
+  width: min(28rem, calc(100% - 32px));
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: var(--tarjeta);
+  color: var(--texto);
+  box-shadow: 0 20px 50px rgba(0, 47, 68, 0.45);
+}
+
+/* efecto "zoom" al abrirse */
+.detalle[open] {
+  animation: zoom-detalle 0.2s ease-out;
+}
+
+/* fondo desenfocado detrás del modal */
+.detalle::backdrop {
+  background: rgba(0, 47, 68, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: aparecer 0.2s ease-out;
+}
+
+@keyframes zoom-detalle {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
-.panel > article {
-  margin-bottom: 0;
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+}
+
+.detalle-contenido {
+  position: relative;
+  padding: 24px;
+}
+
+.detalle-contenido h2 {
+  margin: 8px 0 4px;
+  color: var(--primario-oscuro);
+}
+
+.detalle-cerrar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--primario);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.detalle-cerrar:hover {
+  background: var(--campo);
+}
+
+.detalle-monto {
+  margin: 0 0 16px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--primario);
+}
+
+/* datos en dos columnas: nombre del dato y valor */
+.detalle-datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 16px;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+}
+
+.detalle-datos dt {
+  font-weight: bold;
+  color: var(--suave);
+}
+
+.detalle-datos dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.revelada {
+  font-family: monospace;
+  font-size: 1rem;
+}
+
+.boton-chico {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.boton-secundario {
+  background: transparent;
+  border: 1px solid var(--primario);
+  color: var(--primario);
+}
+
+.boton-secundario:hover {
+  background: var(--campo);
+}
+
+.confirmar {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+}
+
+.acciones-confirmar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.detalle-error {
+  margin: 0;
+  color: var(--peligro);
+  font-weight: bold;
+}
+
+.detalle-error::first-letter {
+  text-transform: uppercase;
+}
+
+.buscador {
+  margin-top: 16px;
+}
+
+.buscador input {
+  width: 100%;
+}
+
+.aviso-lectura {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--campo);
+  border-left: 4px solid var(--suave);
+  color: var(--suave);
+  font-size: 0.9rem;
+}
+
+/* estado fijo de una suscripción que ya no se puede modificar */
+.estado-fijo {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--campo);
+  color: var(--suave);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.item-solo-lectura .item-info strong {
+  color: var(--suave);
+}
+
+.detalle-monto-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detalle-monto-fila .detalle-monto {
+  margin: 0;
+}
+
+.editar-suscripcion {
+  margin-bottom: 16px;
+}
+
+.detalle-contenido .aviso-lectura {
+  margin-bottom: 16px;
+}
+
+/* botón para modificar la suscripción desde la lista */
+.btn-modificar {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--primario);
+  color: var(--primario);
+}
+
+.btn-modificar:hover {
+  background: var(--primario);
+  color: var(--crema);
+}
+
+.item .btn-modificar {
+  margin-left: auto;
+}
+
+/* selector de estado de cada suscripción en la lista */
+.select-estado {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.item .estado-fijo {
+  margin-left: auto;
+}
+
+.panel {
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 47, 68, 0.25);
+}
+
+.panel h2 {
+  margin-top: 0;
+  color: var(--primario);
+}
+
+/* Formularios con Flexbox */
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.formulario-grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  align-items: end;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: var(--suave);
+}
+
+input,
+select {
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--texto);
+  background: var(--campo);
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--primario);
+  outline-offset: 1px;
+}
+
+button {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primario);
+  color: var(--crema);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--primario-oscuro);
+}
+
+/* Listas de entidades */
+.lista {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+}
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.item-detalle {
+  font-size: 0.85rem;
+  color: var(--suave);
+  overflow-wrap: anywhere;
 }
 
 .vacio {
-  color: var(--pico-muted-color);
+  color: var(--suave);
   font-style: italic;
-  margin: 0;
 }
 
-td,
-th {
-  background-color: transparent;
-  vertical-align: middle;
-  padding: 0.55rem 0.5rem;
-}
-
-td {
-  white-space: nowrap;
-}
-
-.form-eliminar {
-  margin: 0;
-  text-align: right;
-}
-
-.form-eliminar button {
-  margin: 0;
-  padding: 0.3rem 0.7rem;
+.btn-eliminar {
+  background: transparent;
+  color: var(--peligro);
+  border: 1px solid var(--peligro);
+  padding: 6px 10px;
   font-size: 0.85rem;
-  color: #9b2c2c;
-  border-color: #9b2c2c;
+  flex-shrink: 0;
 }
 
-.form-eliminar button:hover {
-  background-color: #9b2c2c;
+.btn-eliminar:hover {
+  background: var(--peligro);
   color: var(--crema);
 }
 
 .etiqueta {
   display: inline-block;
-  padding: 0.1rem 0.55rem;
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.8rem;
-  background-color: var(--azul-acero);
+  font-size: 0.75rem;
+  background: var(--fondo);
   color: var(--crema);
-}
-
-.estado {
-  font-weight: bold;
-}
-
-.estado-Activa {
-  color: #1e6b3a;
-}
-
-.estado-Pausada {
-  color: #8a5a00;
-}
-
-.estado-Cancelada {
-  color: #9b2c2c;
 }
 
 .total {
-  font-size: 1.1rem;
+  margin: 0;
+  font-weight: 600;
 }
 
-.aviso-error {
-  background-color: #9b2c2c;
-  color: var(--crema);
+.panel .total + .lista {
+  margin-top: 16px;
+}
+
+.panel .lista:first-child {
+  margin-top: 0;
+}
+
+.mensaje {
+  width: calc(100% - 80px);
+  max-width: 1200px;
+  margin: 16px auto 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #111;
+  color: #fff;
   font-weight: bold;
 }
 
-/* los mensajes de la capa de lógica empiezan en minúscula */
-.aviso-error::first-letter {
+/* los mensajes de la API empiezan en minúscula */
+.mensaje::first-letter {
   text-transform: uppercase;
+}
+
+/* los avisos (de éxito o de error) van en negro; el error se distingue
+   con una marca roja a la izquierda */
+.mensaje.error {
+  border-left: 6px solid var(--peligro);
 }
 
 .pie {
   text-align: center;
   color: var(--crema);
-  padding-bottom: 2rem;
+  padding: 16px;
 }
 
 .pie a {
-  color: var(--azul-oscuro);
+  color: var(--primario-oscuro);
   font-weight: bold;
+}
+
+@media (max-width: 860px) {
+  .vencimientos {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .barra {
+    padding: 28px 16px 20px;
+  }
+
+  .contenido {
+    padding: 0 16px;
+  }
+
+  /* en pantallas angostas las opciones ya quedan en filas separadas */
+  .nav-separador {
+    display: none;
+  }
+
+  .item {
+    flex-wrap: wrap;
+  }
+
+  /* en celular: los datos arriba y los controles ordenados en una grilla
+     (monto y estado lado a lado, eliminar debajo a todo el ancho) */
+  .item-abrible:not(.item-solo-lectura) {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* fila 1: logo y datos; fila 2: modificar y estado; fila 3: eliminar */
+  .item-abrible .item-info {
+    grid-column: 2 / -1;
+  }
+
+  .item-abrible .btn-modificar {
+    grid-column: 1 / 3;
+  }
+
+  .item-abrible .btn-eliminar {
+    grid-column: 1 / -1;
+  }
+
+  .item .btn-modificar,
+  .item .estado-fijo {
+    margin-left: 0;
+  }
+
+  .mensaje {
+    width: auto;
+    margin: 16px 16px 0;
+  }
+}
+
+/* ===========================================================================
+   TP5: ajustes para la versión renderizada en el servidor (sin JavaScript)
+   =========================================================================== */
+
+/* el panel de servicios se abre con CSS: al pasar el cursor por "Servicios"
+   (o al enfocarlo con el teclado o un toque) y queda abierto mientras el
+   cursor esté encima. Empieza justo debajo de la barra y ocupa el resto de
+   la pantalla. Con la clase "abierto" se muestra siempre (modo "elegir"). */
+.barra {
+  position: relative;
+}
+
+.panel-servicios {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: calc(100vh - 100%);
+}
+
+.desplegable:hover > .panel-servicios,
+.desplegable:focus-within > .panel-servicios,
+.panel-servicios.abierto {
+  display: block;
+}
+
+.desplegable:hover > .desplegable-boton,
+.desplegable:focus-within > .desplegable-boton {
+  background: var(--crema);
+  color: var(--primario-oscuro);
+}
+
+#navegacion a.panel-servicios-cerrar {
+  display: grid;
+  place-items: center;
+  color: var(--primario);
+  text-decoration: none;
+}
+
+#navegacion .panel-servicios-ayuda a {
+  color: var(--primario);
+}
+
+/* cada suscripción de la lista: logo + datos son un link al detalle */
+.item-enlace {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.item-enlace:hover strong {
+  text-decoration: underline;
+}
+
+a.btn-modificar {
+  display: inline-block;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.item .btn-modificar {
+  margin-left: auto;
+}
+
+/* cambiar el estado: selector + botón */
+.form-estado,
+.form-eliminar {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+}
+
+.form-estado .boton-chico {
+  padding: 4px 10px;
+}
+
+/* buscador: campo + botón */
+.buscador-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.buscador-form .buscador {
+  flex: 1;
+  margin: 0;
+}
+
+/* detalle de una suscripción: el servidor lo dibuja abierto (con ?ver=id)
+   sobre la lista desenfocada; el fondo es un link que lo cierra */
+.detalle-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.detalle-fondo-cerrar {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 47, 68, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: aparecer 0.2s ease-out;
+}
+
+.detalle-fondo .detalle {
+  position: relative;
+  animation: zoom-detalle 0.2s ease-out;
+}
+
+a.detalle-cerrar {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+a.boton-chico,
+a.boton-secundario {
+  display: inline-block;
+  border-radius: 8px;
+  text-decoration: none;
+  text-align: center;
+}
+
+a.boton-chico {
+  background: var(--primario);
+  color: var(--crema);
+}
+
+a.boton-secundario {
+  padding: 10px 14px;
+}
+
+/* "Mostrar contraseña" sin JavaScript: <details> con el formulario adentro */
+.revelar {
+  margin-top: 16px;
+}
+
+.revelar summary {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--primario);
+  color: var(--crema);
+  font-size: 0.85rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.revelar summary::-webkit-details-marker {
+  display: none;
+}
+
+.revelar[open] summary {
+  display: none;
+}
+
+.ver-catalogo {
+  font-size: 0.85rem;
+  color: var(--primario);
+}
+
+@media (max-width: 720px) {
+  .item-enlace {
+    flex-basis: 100%;
+  }
+
+  .item .btn-modificar {
+    margin-left: 0;
+  }
 }

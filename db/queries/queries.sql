@@ -3,9 +3,9 @@
 
 -- name: CreateUsuario :one
 INSERT INTO usuario (
-    nombre, email, password, tipo
+    nombre, email, password
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3
 )
 RETURNING *;
 
@@ -41,6 +41,15 @@ INSERT INTO servicio (
     $1, $2
 )
 RETURNING *;
+
+-- name: CrearServicioSiNoExiste :exec
+-- se usa para precargar el catálogo al iniciar la app (no duplica si ya existe)
+INSERT INTO servicio (
+    nombre, categoria
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (nombre) DO NOTHING;
 
 -- name: GetServicio :one
 SELECT * FROM servicio 
@@ -108,10 +117,35 @@ WHERE id_suscripcion = $1;
 DELETE FROM suscripcion
 WHERE id_suscripcion = $1;
 
--- name: GetSuscripcionActiva :one
+-- name: ListSuscripcionesVigentes :many
+-- suscripciones del usuario a un servicio que siguen en curso (activas o
+-- pausadas): sirve para exigir cuentas distintas cuando hay más de una
 SELECT * FROM suscripcion
-WHERE id_usuario = $1 AND id_servicio = $2 AND estado = 'Activa' 
-LIMIT 1;
+WHERE id_usuario = $1 AND id_servicio = $2 AND estado IN ('Activa', 'Pausada')
+ORDER BY id_suscripcion;
+
+-- name: ListSuscripcionesParaRenovar :many
+-- suscripciones activas cuyo vencimiento ya pasó
+SELECT * FROM suscripcion
+WHERE estado = 'Activa' AND fecha_vencimiento < $1
+ORDER BY id_suscripcion;
+
+-- name: RenovarSuscripcion :one
+-- en una sola sentencia (atómica): el período vencido pasa a 'Vencida' y se
+-- crea el siguiente, que empieza cuando venció el anterior. La condición
+-- estado = 'Activa' evita renovar dos veces el mismo período.
+WITH vencida AS (
+    UPDATE suscripcion
+    SET estado = 'Vencida'
+    WHERE suscripcion.id_suscripcion = sqlc.arg(id_suscripcion) AND suscripcion.estado = 'Activa'
+    RETURNING *
+)
+INSERT INTO suscripcion (
+    id_usuario, id_servicio, monto, fecha_inicio, fecha_vencimiento, usuario_cuenta, password_cuenta, estado
+)
+SELECT id_usuario, id_servicio, monto, fecha_vencimiento, sqlc.arg(nuevo_vencimiento)::date, usuario_cuenta, password_cuenta, 'Activa'
+FROM vencida
+RETURNING *;
 
 
 -- consultas  de pago 

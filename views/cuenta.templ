@@ -1,52 +1,39 @@
 package views
 
-import (
-	"strconv"
+import "strconv"
 
-	"tp2-krohn-trapani-cicopiedi/db/sqlc"
-)
-
-// CuentaPage es lo primero que ve el consumidor al ingresar
-templ CuentaPage(sesion *Sesion, suscripciones []sqlc.ListSubscripcionesUsuarioRow) {
-	@Layout("Mi cuenta", sesion, contenidoCuenta(sesion, suscripciones))
+// ResumenMes es lo que se muestra debajo del saludo: lo que vence este mes
+type ResumenMes struct {
+	NombreMes string
+	Cantidad  int
+	Total     string
 }
 
-templ contenidoCuenta(sesion *Sesion, suscripciones []sqlc.ListSubscripcionesUsuarioRow) {
+// CuentaPage es lo primero que ve el usuario al ingresar
+templ CuentaPage(p Pagina, resumen ResumenMes) {
+	@Layout(p, contenidoCuenta(p.Sesion, resumen))
+}
+
+templ contenidoCuenta(sesion *Sesion, resumen ResumenMes) {
 	<section class="bienvenida">
 		<h1>Hola, { sesion.Nombre }</h1>
-		<p class="lema">
-			Tenés { textoActivas(cantidadActivas(suscripciones)) } · <span class="sin-corte">{ totalActivo(suscripciones) } por mes</span>
-		</p>
+		<p class="lema">En { resumen.NombreMes } { textoVencen(resumen.Cantidad) } · { resumen.Total }</p>
 	</section>
-	<div class="grid opciones">
-		<a href="/cuenta/suscripciones" class="opcion">
-			<article>
-				<h3>Ver mis suscripciones</h3>
-				<p>Consultá todo lo que pagás, el estado y la vigencia de cada servicio.</p>
-			</article>
+	<div class="opciones">
+		<a href="/cuenta/suscripciones" class="opcion panel">
+			<h3>Ver mis suscripciones</h3>
+			<p>Consultá todo lo que pagás, el estado y la vigencia de cada servicio.</p>
 		</a>
-		<a href="/cuenta/suscripciones/nueva" class="opcion">
-			<article>
-				<h3>Nueva suscripción</h3>
-				<p>Agregá un servicio al que te suscribiste para tenerlo controlado.</p>
-			</article>
+		<a href="/cuenta/suscripciones/nueva" class="opcion panel">
+			<h3>Nueva suscripción</h3>
+			<p>Agregá un servicio al que te suscribiste para tenerlo controlado.</p>
 		</a>
 	</div>
 }
 
-func textoActivas(cantidad int) string {
+func textoVencen(cantidad int) string {
 	if cantidad == 1 {
-		return "1 suscripción activa"
+		return "vence 1 suscripción"
 	}
-	return strconv.Itoa(cantidad) + " suscripciones activas"
-}
-
-func cantidadActivas(suscripciones []sqlc.ListSubscripcionesUsuarioRow) int {
-	cantidad := 0
-	for _, s := range suscripciones {
-		if s.Estado == "Activa" {
-			cantidad++
-		}
-	}
-	return cantidad
+	return "vencen " + strconv.Itoa(cantidad) + " suscripciones"
 }

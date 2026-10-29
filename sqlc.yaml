@@ -9,3 +9,14 @@ sql:
         out: "./db/sqlc/"
         emit_json_tags: true
         emit_empty_slices: true
+        # las credenciales de la cuenta pueden ser NULL: en Go son *string
+        # y en JSON se ven como null
+        overrides:
+          - column: "suscripcion.usuario_cuenta"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "suscripcion.password_cuenta"
+            go_type:
+              type: "string"
+              pointer: true

@@ -1,0 +1,146 @@
+package logic
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"tp2-krohn-trapani-cicopiedi/db/sqlc"
+)
+
+// EstadoVencida es el estado de un período que ya venció y se renovó. Solo lo
+// asigna la renovación automática: no se puede elegir desde la API.
+const EstadoVencida = "Vencida"
+
+// ErrSoloLectura: las suscripciones vencidas o de meses anteriores no se tocan
+var ErrSoloLectura = errors.New("las suscripciones vencidas o de meses anteriores no se pueden modificar")
+
+// ErrCuentaRequerida y ErrCuentaRepetida aplican cuando un usuario tiene más
+// de una suscripción al mismo servicio: cada una tiene que ser otra cuenta.
+var (
+	ErrCuentaRequerida = errors.New("para agregar otra, indicá el usuario de la cuenta para diferenciarla")
+	ErrCuentaRepetida  = errors.New("usá otro usuario de cuenta para diferenciarla")
+)
+
+// reloj permite fijar "hoy" en los tests
+var reloj = time.Now
+
+// hoy devuelve la fecha actual a las 00:00 UTC, igual que las columnas DATE
+func hoy() time.Time {
+	ahora := reloj()
+	return time.Date(ahora.Year(), ahora.Month(), ahora.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// siguienteVencimiento calcula el próximo vencimiento manteniendo el mismo
+// plazo con el que se registró la suscripción. Si el plazo es una cantidad
+// exacta de meses (del 28/10 al 28/11, por ejemplo) se suman meses; si no,
+// se suma la misma cantidad de días.
+func siguienteVencimiento(inicio, vencimiento time.Time) time.Time {
+	meses := (vencimiento.Year()-inicio.Year())*12 + int(vencimiento.Month()) - int(inicio.Month())
+	if meses > 0 && inicio.AddDate(0, meses, 0).Equal(vencimiento) {
+		return vencimiento.AddDate(0, meses, 0)
+	}
+	dias := int(vencimiento.Sub(inicio).Hours() / 24)
+	return vencimiento.AddDate(0, 0, dias)
+}
+
+// EsSoloLectura indica si una suscripción ya no se puede modificar: si fue
+// renovada (Vencida) o si vence en un mes anterior al actual. Lo usan la
+// lógica (para rechazar cambios) y las vistas (para no ofrecerlos).
+func EsSoloLectura(estado string, vencimiento time.Time) bool {
+	if estado == EstadoVencida {
+		return true
+	}
+	h := hoy()
+	inicioDelMes := time.Date(h.Year(), h.Month(), 1, 0, 0, 0, 0, time.UTC)
+	return vencimiento.Before(inicioDelMes)
+}
+
+func esSoloLectura(sub sqlc.Suscripcion) bool {
+	return EsSoloLectura(sub.Estado, sub.FechaVencimiento)
+}
+
+// RenovarVencidas renueva las suscripciones activas cuyo vencimiento ya pasó:
+// el período vencido queda como historial (estado Vencida) y se crea el
+// siguiente con el mismo monto, cuenta y plazo. Si pasaron varios períodos,
+// se renueva las veces que haga falta hasta llegar a uno vigente.
+func (s *ServicioSuscripcion) RenovarVencidas(ctx context.Context) (int, error) {
+	renovadas := 0
+	// el límite evita un ciclo infinito ante un dato inesperado
+	for vuelta := 0; vuelta < 1000; vuelta++ {
+		pendientes, err := s.consultas.ListSuscripcionesParaRenovar(ctx, hoy())
+		if err != nil {
+			return renovadas, err
+		}
+		if len(pendientes) == 0 {
+			return renovadas, nil
+		}
+		for _, sub := range pendientes {
+			_, err := s.consultas.RenovarSuscripcion(ctx, sqlc.RenovarSuscripcionParams{
+				IDSuscripcion:    sub.IDSuscripcion,
+				NuevoVencimiento: siguienteVencimiento(sub.FechaInicio, sub.FechaVencimiento),
+			})
+			if err == sql.ErrNoRows {
+				continue // otra petición la renovó al mismo tiempo
+			} else if err != nil {
+				return renovadas, err
+			}
+			renovadas++
+		}
+	}
+	return renovadas, nil
+}
+
+// mismaCuenta compara usuarios de cuenta sin distinguir mayúsculas; dos
+// suscripciones sin cuenta (nil) cuentan como la misma
+func mismaCuenta(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return strings.EqualFold(*a, *b)
+}
+
+// verificarCuentaDistinta controla las suscripciones vigentes (activas o
+// pausadas) del usuario al mismo servicio, sin contar la que se está
+// modificando (excluir). Al crear (exigirCuenta) la segunda en adelante tiene
+// que indicar un usuario de cuenta; en todos los casos no se puede repetir.
+func (s *ServicioSuscripcion) verificarCuentaDistinta(ctx context.Context, idUsuario, idServicio int32, cuenta *string, excluir int32, exigirCuenta bool) error {
+	vigentes, err := s.consultas.ListSuscripcionesVigentes(ctx, sqlc.ListSuscripcionesVigentesParams{
+		IDUsuario:  idUsuario,
+		IDServicio: idServicio,
+	})
+	if err != nil {
+		return err
+	}
+
+	var otras []sqlc.Suscripcion
+	for _, v := range vigentes {
+		if v.IDSuscripcion != excluir {
+			otras = append(otras, v)
+		}
+	}
+	if len(otras) == 0 {
+		return nil
+	}
+
+	nombre := "este servicio"
+	if srv, err := s.consultas.GetServicio(ctx, idServicio); err == nil {
+		nombre = srv.Nombre
+	}
+
+	if exigirCuenta && cuenta == nil {
+		return fmt.Errorf("ya tenés una suscripción a %s: %w", nombre, ErrCuentaRequerida)
+	}
+	for _, o := range otras {
+		if mismaCuenta(o.UsuarioCuenta, cuenta) {
+			if cuenta == nil {
+				return fmt.Errorf("ya tenés una suscripción a %s sin usuario de cuenta: %w", nombre, ErrCuentaRepetida)
+			}
+			return fmt.Errorf("ya tenés una suscripción a %s con la cuenta %q: %w", nombre, *cuenta, ErrCuentaRepetida)
+		}
+	}
+	return nil
+}
