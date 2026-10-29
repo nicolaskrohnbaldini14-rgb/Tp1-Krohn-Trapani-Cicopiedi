@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- si cambia, app.js recarga las copias viejas que tenga guardadas el navegador -->
+  <meta name="version-pagina" content="2026-10-29b">
   <title>Mis suscripciones · Suscripciones+</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,10 +14,22 @@
     <!-- app.js completa el menú de servicios y cambia los links según la sesión -->
     <nav id="navegacion">
       <div class="desplegable" id="desplegable-servicios">
-        <button type="button" class="desplegable-boton" aria-haspopup="true">Servicios ▾</button>
-        <ul class="desplegable-menu" id="menu-servicios"></ul>
+        <button type="button" class="nav-item desplegable-boton" id="boton-servicios" aria-expanded="false" aria-controls="panel-servicios">Servicios ▾</button>
+        <!-- panel a pantalla completa con el catálogo (lo completa app.js) -->
+        <div class="panel-servicios" id="panel-servicios" hidden>
+          <div class="panel-servicios-contenido">
+            <div class="panel-servicios-encabezado">
+              <div>
+                <h2>Servicios disponibles</h2>
+                <p id="panel-servicios-ayuda" class="panel-servicios-ayuda"></p>
+              </div>
+              <button type="button" id="cerrar-servicios" class="panel-servicios-cerrar" aria-label="Cerrar">×</button>
+            </div>
+            <div id="menu-servicios" class="panel-servicios-grilla"></div>
+          </div>
+        </div>
       </div>
-      <a href="login.html">Iniciar sesión</a>
+      <a href="login.html" class="nav-item">Iniciar sesión</a>
       <a href="registro.html" class="boton">Registrarse</a>
     </nav>
   </header>
@@ -34,7 +48,13 @@
     <!-- lista de los vencimientos del mes y, al costado, el calendario -->
     <div class="vencimientos">
       <section class="panel">
+        <p id="aviso-solo-lectura" class="aviso-lectura" hidden>
+          Estás viendo un mes anterior: estas suscripciones son solo de lectura.
+        </p>
         <p id="total-mensual" class="total"></p>
+        <label class="buscador">Buscar en este mes
+          <input type="search" id="buscar-suscripciones" placeholder="Servicio, categoría o cuenta…" autocomplete="off">
+        </label>
         <ul id="lista-suscripciones" class="lista"></ul>
 
         <!-- app.js completa los links con ?mes=AAAA-MM -->
@@ -57,7 +77,28 @@
       <button type="button" id="detalle-cerrar" class="detalle-cerrar" aria-label="Cerrar">×</button>
       <span id="detalle-categoria" class="etiqueta"></span>
       <h2 id="detalle-titulo"></h2>
-      <p id="detalle-monto" class="detalle-monto"></p>
+      <div class="detalle-monto-fila">
+        <p id="detalle-monto" class="detalle-monto"></p>
+        <button type="button" id="detalle-editar" class="boton-chico">Modificar</button>
+      </div>
+      <!-- modificar monto, usuario y contraseña de la cuenta (solo si no es de solo lectura) -->
+      <form id="form-editar" class="formulario editar-suscripcion" hidden>
+        <label>Monto mensual
+          <input type="number" name="monto" min="0.01" step="0.01" required>
+        </label>
+        <label>Usuario de la cuenta del servicio
+          <input type="text" name="usuario_cuenta" autocomplete="off" placeholder="Sin cuenta">
+        </label>
+        <label>Nueva contraseña de la cuenta
+          <input type="password" name="password_cuenta" autocomplete="new-password" placeholder="Dejala vacía para no cambiarla">
+        </label>
+        <p id="editar-error" class="detalle-error" role="alert" hidden></p>
+        <div class="acciones-confirmar">
+          <button type="button" id="cancelar-editar" class="boton-secundario">Cancelar</button>
+          <button type="submit">Guardar</button>
+        </div>
+      </form>
+      <p id="detalle-solo-lectura" class="aviso-lectura" hidden>Esta suscripción es solo de lectura.</p>
 
       <dl class="detalle-datos">
         <dt>Estado</dt>

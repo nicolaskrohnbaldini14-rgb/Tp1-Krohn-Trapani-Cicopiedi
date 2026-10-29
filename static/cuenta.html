@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- si cambia, app.js recarga las copias viejas que tenga guardadas el navegador -->
+  <meta name="version-pagina" content="2026-10-29b">
   <title>Mi cuenta · Suscripciones+</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,10 +14,22 @@
     <!-- app.js completa el menú de servicios y cambia los links según la sesión -->
     <nav id="navegacion">
       <div class="desplegable" id="desplegable-servicios">
-        <button type="button" class="desplegable-boton" aria-haspopup="true">Servicios ▾</button>
-        <ul class="desplegable-menu" id="menu-servicios"></ul>
+        <button type="button" class="nav-item desplegable-boton" id="boton-servicios" aria-expanded="false" aria-controls="panel-servicios">Servicios ▾</button>
+        <!-- panel a pantalla completa con el catálogo (lo completa app.js) -->
+        <div class="panel-servicios" id="panel-servicios" hidden>
+          <div class="panel-servicios-contenido">
+            <div class="panel-servicios-encabezado">
+              <div>
+                <h2>Servicios disponibles</h2>
+                <p id="panel-servicios-ayuda" class="panel-servicios-ayuda"></p>
+              </div>
+              <button type="button" id="cerrar-servicios" class="panel-servicios-cerrar" aria-label="Cerrar">×</button>
+            </div>
+            <div id="menu-servicios" class="panel-servicios-grilla"></div>
+          </div>
+        </div>
       </div>
-      <a href="login.html">Iniciar sesión</a>
+      <a href="login.html" class="nav-item">Iniciar sesión</a>
       <a href="registro.html" class="boton">Registrarse</a>
     </nav>
   </header>

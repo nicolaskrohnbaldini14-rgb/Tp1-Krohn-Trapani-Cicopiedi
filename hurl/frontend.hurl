@@ -10,7 +10,9 @@ xpath "count(//a[@href='login.html'])" >= 1
 xpath "count(//a[@href='registro.html'])" >= 1
 # ya no hay registro de empresas
 xpath "count(//a[@href='registro.html?tipo=empresa'])" == 0
-xpath "count(//nav//ul[@id='menu-servicios'])" == 1
+# el catálogo se despliega en un panel a pantalla completa
+xpath "count(//nav//div[@id='panel-servicios'])" == 1
+xpath "count(//div[@id='panel-servicios']//div[@id='menu-servicios'])" == 1
 xpath "count(//ul[@id='catalogo'])" == 0
 # en el inicio no está el formulario de servicios
 xpath "count(//form[@id='form-servicio'])" == 0
@@ -43,6 +45,13 @@ xpath "count(//ul[@id='lista-suscripciones'])" == 1
 xpath "count(//a[@id='mes-siguiente'])" == 1
 xpath "count(//a[@id='mes-anterior'])" == 1
 xpath "count(//aside//div[@id='calendario'])" == 1
+# buscador y aviso de solo lectura para meses anteriores
+xpath "count(//input[@id='buscar-suscripciones'][@type='search'])" == 1
+xpath "count(//p[@id='aviso-solo-lectura'])" == 1
+# el detalle permite modificar el monto, el usuario y la contraseña de la cuenta
+xpath "count(//dialog//form[@id='form-editar']//input[@name='monto'])" == 1
+xpath "count(//dialog//form[@id='form-editar']//input[@name='usuario_cuenta'])" == 1
+xpath "count(//dialog//form[@id='form-editar']//input[@name='password_cuenta'])" == 1
 # el detalle de cada suscripción se abre en un <dialog>
 xpath "count(//dialog[@id='detalle'])" == 1
 xpath "count(//dialog//form[@id='form-confirmar']//input[@type='password'])" == 1
@@ -66,6 +75,8 @@ GET {{host}}/app.js
 HTTP 200
 [Asserts]
 header "Content-Type" contains "javascript"
+# el navegador tiene que revalidar los archivos para no usar versiones viejas
+header "Cache-Control" == "no-cache"
 
 GET {{host}}/styles.css
 HTTP 200

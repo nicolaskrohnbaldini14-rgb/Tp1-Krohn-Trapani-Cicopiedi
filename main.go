@@ -42,6 +42,13 @@ func main() {
 	}
 	log.Println("Catálogo de servicios precargado")
 
+	// las suscripciones activas que ya vencieron se renuevan por el mismo plazo
+	if renovadas, err := servicioSuscripcion.RenovarVencidas(context.Background()); err != nil {
+		log.Fatalf("Error al renovar suscripciones vencidas: %v", err)
+	} else if renovadas > 0 {
+		log.Printf("Suscripciones renovadas: %d", renovadas)
+	}
+
 	// 5. Handlers
 	sesiones := logic.NuevasSesiones()
 	manejadorSesion := logic.NuevoManejadorSesion(sesiones, servicioUsuario)
@@ -73,7 +80,14 @@ func main() {
 
 	// 7. Frontend (TP4): HTML, CSS y JS estáticos que consumen la API.
 	// Las rutas de la API son más específicas, así que tienen prioridad sobre "/".
-	http.Handle("/", http.FileServer(http.Dir("./static")))
+	// "no-cache" hace que el navegador pregunte siempre si hay una versión nueva
+	// (si no cambió, el servidor responde 304), así no queda usando un
+	// app.js o styles.css viejo después de un cambio.
+	estaticos := http.FileServer(http.Dir("./static"))
+	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		estaticos.ServeHTTP(w, r)
+	}))
 
 	// 8. Servidor HTTP
 	log.Println("Servidor escuchando en http://localhost:8080")

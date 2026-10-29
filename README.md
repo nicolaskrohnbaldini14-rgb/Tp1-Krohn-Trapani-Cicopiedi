@@ -54,17 +54,43 @@ La aplicación está separada en páginas según quién la usa:
 
 | Página | Quién | Contenido |
 |---|---|---|
-| `index.html` (`/`) | Todos | Portada centrada con el título, el lema y los botones **Iniciar sesión** y **Registrarse**. |
+| `index.html` (`/`) | Todos | Portada centrada con el título, el lema y los botones **Iniciar sesión** y **Registrarse**, sobre el fondo azul. |
 | `login.html` | Todos | Inicio de sesión. |
 | `registro.html` | Todos | Registro de usuarios. |
 | `cuenta.html` | Con sesión | *"Hola, {nombre}"*, resumen de lo que vence este mes y dos opciones: ver las suscripciones o crear una nueva. |
-| `suscripciones.html` | Con sesión | Suscripciones que **vencen en el mes** (por defecto el actual) con el gasto activo de ese mes, un selector para pausarlas, cancelarlas o reactivarlas y botón para eliminar. Abajo, links al mes anterior y al siguiente (`?mes=AAAA-MM`); al costado, un calendario del mes con los días de vencimiento marcados. |
-| `nueva-suscripcion.html` | Con sesión | Formulario de alta: servicio del catálogo (agrupado por categoría), monto y fechas; usuario y contraseña de la cuenta son opcionales. La suscripción se crea siempre **Activa**. |
+| `suscripciones.html` | Con sesión | Suscripciones que **vencen en el mes** (por defecto el actual) con el gasto activo de ese mes, un **buscador**, un selector para pausarlas, cancelarlas o reactivarlas y botón para eliminar. Abajo, links al mes anterior y al siguiente (`?mes=AAAA-MM`); al costado, un calendario del mes con los días de vencimiento marcados. Los **meses anteriores son solo de lectura**. |
+| `nueva-suscripcion.html` | Con sesión | Formulario de alta: servicio del catálogo (agrupado por categoría; con `?servicio={id}` viene preseleccionado), monto y fechas; usuario y contraseña de la cuenta son opcionales (salvo para diferenciar una segunda suscripción al mismo servicio). La suscripción se crea siempre **Activa**. |
 
-Todas las páginas tienen en la barra superior el menú **Servicios ▾**: al
-pasar el cursor (o tocarlo en el celular) se despliega el catálogo de
-servicios disponibles para suscribirse, agrupado por categoría y de solo
-lectura. Lo completa `app.js` con `GET /servicios`.
+Todas las páginas tienen en la barra superior el botón **Servicios ▾**: al
+pasar el cursor (o tocarlo en el celular) se abre un panel que ocupa toda la
+pantalla debajo de la barra, con el catálogo agrupado por categoría (cada
+categoría con su ícono, dibujado en SVG en `app.js`). Los mismos íconos
+aparecen al lado de cada suscripción en *Mis suscripciones*. Lo
+completa `app.js` con `GET /servicios`. Con la sesión iniciada, cada servicio
+es un link a `nueva-suscripcion.html?servicio={id}`, que abre el formulario
+con ese servicio ya elegido. El panel se cierra al sacar el cursor, con la ×,
+con Escape o tocando el fondo.
+
+En el formulario de nueva suscripción, el selector de servicio abre ese mismo
+panel a pantalla completa (en vez de la lista desplegable del navegador), con
+el servicio actual resaltado: al tocar uno, queda elegido en el formulario y
+el panel se cierra.
+
+Con la sesión iniciada, la barra muestra las opciones como "pastillas" (la
+página actual resaltada), separadas del usuario (inicial en un círculo y
+*Hola, {nombre}*) y del botón *Cerrar sesión*. La barra va de margen a margen
+de la pantalla. Los avisos (de éxito o de error) se muestran con fondo negro;
+los de error llevan además una marca roja a la izquierda.
+
+**Fondo:** todas las pantallas tienen sobre el azul una textura de grilla
+suave (un SVG incrustado en el CSS).
+
+**Caché del navegador:** el servidor envía los archivos de `static/` con
+`Cache-Control: no-cache`, así el navegador siempre consulta si hay una
+versión nueva. Además, cada página tiene `<meta name="version-pagina">`: si
+`app.js` detecta una copia vieja guardada (con otra versión o sin la marca),
+recarga la página una sola vez para traer la actual. Al cambiar el HTML hay
+que actualizar esa versión en las páginas y en `VERSION_PAGINAS` de `app.js`.
 
 Todas las páginas comparten [`static/app.js`](static/app.js) y
 [`static/styles.css`](static/styles.css). Cada una se identifica con
@@ -99,6 +125,18 @@ Funcionamiento de `app.js`:
   verla hay que confirmar la contraseña del usuario de Suscripciones+
   (`POST /suscripciones/{id}/password`). Se cierra con la ×, con Escape o
   tocando el fondo, y al cerrarse la contraseña vuelve a ocultarse.
+- **Buscador:** filtra las suscripciones del mes que se está viendo por
+  servicio, categoría o usuario de la cuenta, a medida que se escribe.
+- **Solo lectura:** en los meses anteriores al actual, y en los períodos que
+  ya se renovaron (*Vencida (renovada)*), no aparecen el selector de estado ni
+  el botón de eliminar, ni se puede modificar el monto. La API también lo
+  controla (`403`).
+- **Modificar una suscripción:** cada suscripción editable tiene el botón
+  *Modificar* en la lista (también está dentro del detalle), que abre un
+  formulario con el monto, el usuario y la contraseña de la cuenta del
+  servicio. Si la contraseña se deja vacía se conserva la guardada; si se
+  borra el usuario, queda "Sin cuenta". Hace un `PUT` y refresca la lista y
+  el total.
 - **Cambio de estado:** cada suscripción de la lista tiene un selector
   (*Activa / Pausada / Cancelada*). Con delegación de eventos, un listener de
   `change` sobre la lista hace el `PUT` y refresca la vista.
@@ -237,11 +275,11 @@ registrar gimnasio, pádel, fútbol, etc.
 
 | Método | Ruta | Respuestas |
 |---|---|---|
-| `POST` | `/suscripciones` | `201` · `400` datos inválidos · `403` a nombre de otro usuario · `404` servicio inexistente · `409` ya tiene una activa |
+| `POST` | `/suscripciones` | `201` · `400` datos inválidos o falta el usuario de cuenta para diferenciarla · `403` a nombre de otro usuario · `404` servicio inexistente · `409` ya tiene una suscripción vigente a ese servicio con esa cuenta |
 | `GET` | `/suscripciones/{id}` | `200` · `400` · `404` |
 | `GET` | `/suscripciones/usuario/{id_usuario}` | `200` suscripciones del usuario · `403` si es otro usuario |
-| `PUT` | `/suscripciones/{id}` | `200` · `400` · `404` · `409` |
-| `DELETE` | `/suscripciones/{id}` | `204` · `404` |
+| `PUT` | `/suscripciones/{id}` | `200` · `400` · `403` vencida o de un mes anterior · `404` · `409` cuenta repetida |
+| `DELETE` | `/suscripciones/{id}` | `204` · `403` vencida o de un mes anterior · `404` |
 | `POST` | `/suscripciones/{id}/password` | `200` `{"password_cuenta": "..."}` (o `null` si no tiene) · `403` contraseña del usuario incorrecta · `404` si no existe o es de otro usuario |
 
 - `id_usuario` es opcional: si no se envía se usa el de la sesión.
@@ -288,8 +326,10 @@ registrar gimnasio, pádel, fútbol, etc.
   - El usuario y el servicio tienen que existir.
   - El monto tiene que ser mayor a cero y la fecha de inicio anterior a la de vencimiento.
   - Se crean siempre en estado `Activa`; después se pueden pasar a `Pausada` o `Cancelada` (y reactivar).
+  - **Renovación automática:** cuando una suscripción activa vence, se renueva sola por el mismo plazo con el que se registró (si era de un mes, por otro mes; si era de un año, por otro año). El período vencido queda como historial con estado `Vencida` y se crea uno nuevo con el mismo monto y la misma cuenta. Se hace al iniciar la app y cada vez que se piden las suscripciones de un usuario (`RenovarVencidas` en `logic/renovacion.go`), con una sola sentencia SQL atómica (`RenovarSuscripcion`). Las pausadas y canceladas no se renuevan.
+  - Las suscripciones `Vencida` y las que vencen en un mes anterior al actual son de **solo lectura**.
   - Usuario y contraseña de la cuenta del servicio son opcionales.
-  - Un usuario no puede tener dos suscripciones activas al mismo servicio.
+  - Un usuario puede tener **varias suscripciones al mismo servicio** si son cuentas distintas: desde la segunda (mientras la otra siga activa o pausada) hay que indicar el usuario de la cuenta, y no se puede repetir uno que ya esté en uso (sin distinguir mayúsculas).
   - La `password_cuenta` nunca se devuelve en las respuestas.
 - **Pagos:** la suscripción tiene que existir, el monto tiene que ser mayor a cero y la fecha de pago no puede ser posterior al vencimiento de la suscripción.
 
@@ -304,7 +344,7 @@ de las acciones protegidas.
 | `frontend.hurl` | Que se sirvan las páginas, que el inicio tenga los links a login y registro y el menú de servicios en la barra, y que no tenga el alta de servicios. |
 | `usuario.hurl` | Registro, login correcto e incorrecto, `GET /sesion`, CRUD de la propia cuenta, `403` sobre cuentas ajenas y cierre de sesión. |
 | `servicio.hurl` | Catálogo precargado (servicios y categorías, incluida Deportes) y `405` al intentar crear, modificar o borrar servicios. |
-| `suscripcion.hurl` | CRUD de suscripciones, alta sin credenciales, `400` al crearlas pausadas o canceladas, `404` sobre suscripciones ajenas y `401` sin sesión. |
+| `suscripcion.hurl` | CRUD de suscripciones, varias suscripciones al mismo servicio con cuentas distintas, alta sin credenciales, `400` al crearlas pausadas o canceladas, renovación automática con el mismo plazo, `403` al modificar períodos vencidos, `404` sobre suscripciones ajenas y `401` sin sesión. |
 | `pago.hurl` | Pagos sobre suscripciones propias, `404` sobre pagos ajenos y `401` sin sesión. |
 
 # Estructura del proyecto
