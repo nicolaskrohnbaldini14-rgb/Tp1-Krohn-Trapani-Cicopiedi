@@ -57,8 +57,8 @@ La aplicación está separada en páginas según quién la usa:
 | `index.html` (`/`) | Todos | Portada centrada con el título, el lema y los botones **Iniciar sesión** y **Registrarse**. |
 | `login.html` | Todos | Inicio de sesión. |
 | `registro.html` | Todos | Registro de usuarios. |
-| `cuenta.html` | Con sesión | *"Hola, {nombre}"*, resumen del gasto y dos opciones: ver las suscripciones o crear una nueva. |
-| `suscripciones.html` | Con sesión | Lista de sus suscripciones con el gasto mensual activo, un selector para pausarlas, cancelarlas o reactivarlas y botón para eliminar. |
+| `cuenta.html` | Con sesión | *"Hola, {nombre}"*, resumen de lo que vence este mes y dos opciones: ver las suscripciones o crear una nueva. |
+| `suscripciones.html` | Con sesión | Suscripciones que **vencen en el mes** (por defecto el actual) con el gasto activo de ese mes, un selector para pausarlas, cancelarlas o reactivarlas y botón para eliminar. Abajo, links al mes anterior y al siguiente (`?mes=AAAA-MM`); al costado, un calendario del mes con los días de vencimiento marcados. |
 | `nueva-suscripcion.html` | Con sesión | Formulario de alta: servicio del catálogo (agrupado por categoría), monto y fechas; usuario y contraseña de la cuenta son opcionales. La suscripción se crea siempre **Activa**. |
 
 Todas las páginas tienen en la barra superior el menú **Servicios ▾**: al
@@ -83,6 +83,15 @@ Funcionamiento de `app.js`:
   `preventDefault()`, arma el JSON con los datos de los inputs y envía un
   `POST`. Al crear una suscripción se pasa a la lista de suscripciones, que
   vuelve a pedir la lista completa.
+- **Vencimientos por mes:** `suscripciones.html` pide todas las suscripciones
+  del usuario y muestra solo las que vencen en el mes elegido (por defecto el
+  actual, o el de `?mes=AAAA-MM`). El *gasto mensual activo* suma solo las
+  suscripciones **activas** de ese mes. Debajo de la lista hay links al mes
+  anterior y al siguiente, que muestran lo mismo para ese mes.
+- **Calendario:** al costado de la lista se dibuja la grilla del mes (de lunes
+  a domingo, con el día de hoy recuadrado). Los días con vencimientos tienen un
+  pin y, al pasar el cursor o enfocarlos con el teclado, muestran un cartel con
+  los servicios que vencen ese día, su monto y si están pausados o cancelados.
 - **Cambio de estado:** cada suscripción de la lista tiene un selector
   (*Activa / Pausada / Cancelada*). Con delegación de eventos, un listener de
   `change` sobre la lista hace el `PUT` y refresca la vista.

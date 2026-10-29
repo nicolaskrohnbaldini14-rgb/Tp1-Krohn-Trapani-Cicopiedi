@@ -39,6 +39,10 @@ GET {{host}}/suscripciones.html
 HTTP 200
 [Asserts]
 xpath "count(//ul[@id='lista-suscripciones'])" == 1
+# vencimientos por mes: links a otros meses y calendario al costado
+xpath "count(//a[@id='mes-siguiente'])" == 1
+xpath "count(//a[@id='mes-anterior'])" == 1
+xpath "count(//aside//div[@id='calendario'])" == 1
 
 GET {{host}}/nueva-suscripcion.html
 HTTP 200

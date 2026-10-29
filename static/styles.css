@@ -312,6 +312,139 @@ section > h2 {
   margin: 0;
 }
 
+/* ---------- Vencimientos del mes: lista + calendario al costado ---------- */
+
+.titulo-con-accion .lema {
+  margin-top: 4px;
+}
+
+.vencimientos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 24px;
+  align-items: start;
+}
+
+.navegacion-meses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+}
+
+.navegacion-meses a {
+  color: var(--primario);
+  font-weight: bold;
+}
+
+/* el link al mes siguiente queda a la derecha aunque sea el único */
+#mes-siguiente {
+  margin-left: auto;
+}
+
+.calendario h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+/* "octubre de 2026" → "Octubre de 2026" */
+.calendario h2::first-letter {
+  text-transform: uppercase;
+}
+
+.calendario-grilla {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-semana {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--suave);
+}
+
+.cal-dia {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: var(--campo);
+}
+
+.cal-hoy {
+  outline: 2px solid var(--primario);
+  font-weight: bold;
+}
+
+.cal-con-vencimiento {
+  background: var(--primario);
+  color: var(--crema);
+  font-weight: bold;
+  cursor: default;
+}
+
+/* pin que marca el día de vencimiento */
+.cal-pin {
+  width: 6px;
+  height: 6px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: #f2b84b;
+}
+
+/* cartel con los servicios que vencen ese día */
+.cal-cartel {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  min-width: 11rem;
+  padding: 8px 10px;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 8px;
+  background: var(--primario-oscuro);
+  color: var(--crema);
+  font-size: 0.8rem;
+  font-weight: normal;
+  text-align: left;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.cal-izquierda .cal-cartel {
+  left: 0;
+  transform: none;
+}
+
+.cal-derecha .cal-cartel {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.cal-con-vencimiento:hover .cal-cartel,
+.cal-con-vencimiento:focus .cal-cartel {
+  display: flex;
+}
+
+.calendario-ayuda {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--suave);
+}
+
 .ayuda-clara {
   color: var(--crema);
 }
@@ -496,6 +629,12 @@ button:hover {
 .pie a {
   color: var(--primario-oscuro);
   font-weight: bold;
+}
+
+@media (max-width: 860px) {
+  .vencimientos {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {

@@ -24,14 +24,32 @@
 
   <main class="contenido">
     <div class="titulo-con-accion">
-      <h1>Mis suscripciones</h1>
+      <div>
+        <h1>Mis suscripciones</h1>
+        <p id="titulo-mes" class="lema">Vencimientos del mes</p>
+      </div>
       <a href="nueva-suscripcion.html" class="boton">Nueva suscripción</a>
     </div>
 
-    <section class="panel">
-      <p id="total-mensual" class="total"></p>
-      <ul id="lista-suscripciones" class="lista"></ul>
-    </section>
+    <!-- lista de los vencimientos del mes y, al costado, el calendario -->
+    <div class="vencimientos">
+      <section class="panel">
+        <p id="total-mensual" class="total"></p>
+        <ul id="lista-suscripciones" class="lista"></ul>
+
+        <!-- app.js completa los links con ?mes=AAAA-MM -->
+        <nav class="navegacion-meses" aria-label="Otros meses">
+          <a id="mes-anterior" href="suscripciones.html">← Mes anterior</a>
+          <a id="mes-siguiente" href="suscripciones.html">Mes siguiente →</a>
+        </nav>
+      </section>
+
+      <aside class="panel calendario" aria-labelledby="calendario-titulo">
+        <h2 id="calendario-titulo">Calendario</h2>
+        <div id="calendario" class="calendario-grilla"></div>
+        <p class="calendario-ayuda">Pasá el cursor por un día marcado para ver qué vence.</p>
+      </aside>
+    </div>
   </main>
 
   <footer class="pie">

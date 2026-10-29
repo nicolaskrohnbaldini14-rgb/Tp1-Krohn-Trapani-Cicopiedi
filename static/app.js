@@ -103,6 +103,115 @@ function totalActivo(suscripciones) {
 }
 
 // ---------------------------------------------------------------------------
+// Meses y vencimientos
+// ---------------------------------------------------------------------------
+
+// Los meses se manejan como texto "AAAA-MM" (por ejemplo "2026-10"), que es
+// lo mismo que los primeros 7 caracteres de la fecha que devuelve la API.
+
+function claveMes(fecha) {
+  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function mesActual() {
+  return claveMes(new Date());
+}
+
+// sumarMeses("2026-12", 1) devuelve "2027-01"
+function sumarMeses(clave, cantidad) {
+  const [anio, mes] = clave.split("-").map(Number);
+  return claveMes(new Date(anio, mes - 1 + cantidad, 1));
+}
+
+// nombreMes("2026-10") devuelve "octubre de 2026"
+function nombreMes(clave) {
+  const [anio, mes] = clave.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric" }).format(new Date(anio, mes - 1, 1));
+}
+
+// mesDeLaURL lee ?mes=AAAA-MM; si no viene o es inválido, usa el mes actual
+function mesDeLaURL() {
+  const mes = new URLSearchParams(location.search).get("mes") ?? "";
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(mes) ? mes : mesActual();
+}
+
+function venceEnMes(suscripcion, clave) {
+  return suscripcion.fecha_vencimiento.slice(0, 7) === clave;
+}
+
+// pintarCalendario arma la grilla del mes (de lunes a domingo) y marca con un
+// pin los días en que vence alguna suscripción. Al pasar el cursor (o enfocar
+// el día) se muestra un cartel con los servicios que vencen ese día.
+function pintarCalendario(contenedor, clave, suscripciones) {
+  const [anio, mes] = clave.split("-").map(Number);
+  const diasDelMes = new Date(anio, mes, 0).getDate();
+  const columnaDelDia1 = (new Date(anio, mes - 1, 1).getDay() + 6) % 7; // lunes = 0
+  const hoy = new Date();
+  const esMesActual = clave === claveMes(hoy);
+
+  const vencimientosPorDia = new Map();
+  for (const s of suscripciones) {
+    const dia = Number(s.fecha_vencimiento.slice(8, 10));
+    if (!vencimientosPorDia.has(dia)) vencimientosPorDia.set(dia, []);
+    vencimientosPorDia.get(dia).push(s);
+  }
+
+  const celdas = [];
+  for (const inicial of ["L", "M", "M", "J", "V", "S", "D"]) {
+    const celda = document.createElement("div");
+    celda.className = "cal-semana";
+    celda.textContent = inicial;
+    celdas.push(celda);
+  }
+  for (let i = 0; i < columnaDelDia1; i++) {
+    celdas.push(document.createElement("div"));
+  }
+
+  for (let dia = 1; dia <= diasDelMes; dia++) {
+    const celda = document.createElement("div");
+    celda.className = "cal-dia";
+    if (esMesActual && dia === hoy.getDate()) celda.classList.add("cal-hoy");
+
+    const numero = document.createElement("span");
+    numero.textContent = dia;
+    celda.append(numero);
+
+    const vencen = vencimientosPorDia.get(dia);
+    if (vencen) {
+      celda.classList.add("cal-con-vencimiento");
+      // los carteles de los días de los costados se alinean hacia adentro
+      const columna = (columnaDelDia1 + dia - 1) % 7;
+      if (columna <= 1) celda.classList.add("cal-izquierda");
+      if (columna >= 5) celda.classList.add("cal-derecha");
+      celda.tabIndex = 0;
+
+      const pin = document.createElement("span");
+      pin.className = "cal-pin";
+      pin.setAttribute("aria-hidden", "true");
+
+      const cartel = document.createElement("div");
+      cartel.className = "cal-cartel";
+      cartel.setAttribute("role", "tooltip");
+      const titulo = document.createElement("strong");
+      titulo.textContent = `Vence el ${dia}:`;
+      cartel.append(titulo);
+      for (const s of vencen) {
+        const linea = document.createElement("span");
+        const estado = s.estado === "Activa" ? "" : ` (${s.estado.toLowerCase()})`;
+        linea.textContent = `${s.servicio_nombre} — ${formatoPesos.format(Number(s.monto))}${estado}`;
+        cartel.append(linea);
+      }
+
+      celda.setAttribute("aria-label", `${dia}: vence ${vencen.map((s) => s.servicio_nombre).join(", ")}`);
+      celda.append(pin, cartel);
+    }
+    celdas.push(celda);
+  }
+
+  contenedor.replaceChildren(...celdas);
+}
+
+// ---------------------------------------------------------------------------
 // Sesión
 // ---------------------------------------------------------------------------
 
@@ -267,11 +376,14 @@ async function paginaCuenta(sesion) {
 
   document.getElementById("saludo").textContent = `Hola, ${sesion.nombre}`;
 
-  const suscripciones = await pedir(`/suscripciones/usuario/${sesion.id_usuario}`);
-  const activas = suscripciones.filter((s) => s.estado === "Activa").length;
-  const texto = activas === 1 ? "1 suscripción activa" : `${activas} suscripciones activas`;
+  // el resumen, igual que la lista, tiene en cuenta solo lo que vence este mes
+  const mes = mesActual();
+  const todas = await pedir(`/suscripciones/usuario/${sesion.id_usuario}`);
+  const delMes = todas.filter((s) => venceEnMes(s, mes));
+  const activas = delMes.filter((s) => s.estado === "Activa").length;
+  const texto = activas === 1 ? "vence 1 suscripción activa" : `vencen ${activas} suscripciones activas`;
   document.getElementById("resumen").textContent =
-    `Tenés ${texto} · ${formatoPesos.format(totalActivo(suscripciones))} por mes`;
+    `En ${nombreMes(mes)} ${texto} · ${formatoPesos.format(totalActivo(delMes))}`;
 }
 
 async function paginaSuscripciones(sesion) {
@@ -280,18 +392,47 @@ async function paginaSuscripciones(sesion) {
   const lista = document.getElementById("lista-suscripciones");
   const total = document.getElementById("total-mensual");
 
+  // se muestran solo las suscripciones que vencen en el mes elegido
+  // (por defecto el actual; los links llevan a ?mes=AAAA-MM)
+  const mes = mesDeLaURL();
+  const anterior = sumarMeses(mes, -1);
+  const siguiente = sumarMeses(mes, 1);
+
+  document.getElementById("titulo-mes").textContent =
+    mes === mesActual() ? `Vencimientos de este mes: ${nombreMes(mes)}` : `Vencimientos de ${nombreMes(mes)}`;
+  document.getElementById("calendario-titulo").textContent = nombreMes(mes);
+
+  const linkAnterior = document.getElementById("mes-anterior");
+  linkAnterior.href = `suscripciones.html?mes=${anterior}`;
+  linkAnterior.textContent = `← ${nombreMes(anterior)}`;
+  const linkSiguiente = document.getElementById("mes-siguiente");
+  linkSiguiente.href = `suscripciones.html?mes=${siguiente}`;
+  linkSiguiente.textContent = `Ver los vencimientos de ${nombreMes(siguiente)} →`;
+
   // se guardan para poder armar el PUT al cambiar el estado
   let suscripciones = [];
 
   async function cargar() {
-    suscripciones = await pedir(`/suscripciones/usuario/${sesion.id_usuario}`);
+    const todas = await pedir(`/suscripciones/usuario/${sesion.id_usuario}`);
+    suscripciones = todas.filter((s) => venceEnMes(s, mes));
+
+    pintarCalendario(document.getElementById("calendario"), mes, suscripciones);
+
+    // el gasto suma solo las suscripciones activas que vencen en el mes
+    total.textContent = `Gasto mensual activo de ${nombreMes(mes)}: ${formatoPesos.format(totalActivo(suscripciones))}`;
+
     if (suscripciones.length === 0) {
-      mostrarVacio(lista, "Todavía no registraste ninguna suscripción.");
-      total.textContent = "";
+      mostrarVacio(
+        lista,
+        todas.length === 0
+          ? "Todavía no registraste ninguna suscripción."
+          : `No tenés suscripciones que venzan en ${nombreMes(mes)}.`
+      );
       return;
     }
+    // ordenadas por fecha de vencimiento
+    suscripciones.sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento));
     lista.replaceChildren(...suscripciones.map(itemSuscripcion));
-    total.textContent = `Gasto mensual activo: ${formatoPesos.format(totalActivo(suscripciones))}`;
   }
 
   // Delegación de eventos: el cambio de estado de cualquier suscripción
@@ -335,7 +476,8 @@ async function paginaSuscripciones(sesion) {
 function itemSuscripcion(s) {
   const detalle = [s.servicio_categoria];
   if (s.usuario_cuenta) detalle.push(`cuenta ${s.usuario_cuenta}`);
-  detalle.push(`del ${formatearFecha(s.fecha_inicio)} al ${formatearFecha(s.fecha_vencimiento)}`);
+  detalle.push(`desde el ${formatearFecha(s.fecha_inicio)}`);
+  detalle.push(`vence el ${formatearFecha(s.fecha_vencimiento)}`);
 
   const li = crearItem(
     `${s.servicio_nombre} — ${formatoPesos.format(Number(s.monto))}`,
